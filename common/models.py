@@ -11,8 +11,6 @@ class User(AbstractUser):
     )
     # 账号
     nickname = models.CharField(max_length=128)
-    # # 用户名
-    # username = models.CharField(max_length=128)
     # 电话号码
     phonenumber = models.CharField(max_length=32, unique=True)
     # 职位

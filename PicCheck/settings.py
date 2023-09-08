@@ -14,6 +14,8 @@ from pathlib import Path
 
 import datetime
 
+from PicCheck import postgresql_cfg
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -47,6 +49,10 @@ INSTALLED_APPS = [
     'rest_framework_jwt',
 ]
 
+JWT_AUTH = {
+    'JWT_EXPIRATION_DELTA': datetime.timedelta(days=7),
+    'JWT_ALLOW_REFRESH': True
+}
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -83,14 +89,15 @@ WSGI_APPLICATION = "PicCheck.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "picCheck",
-        "USER": "postgres",
-        "PASSWORD": "chch1778",
-        "HOST": "localhost",
-        "PORT": "5432",
+        "ENGINE": "django.db.backends.postgresql",  # 数据库引擎
+        "NAME": postgresql_cfg.get_config("NAME"),  # 数据库名字
+        "USER": postgresql_cfg.get_config("USER"),  # 数据库用户名
+        "PASSWORD": postgresql_cfg.get_config("PASSWORD"),  # 数据库用户密码
+        "HOST": postgresql_cfg.get_config("HOST"),  # 数据库主机
+        "PORT": postgresql_cfg.get_config("PORT"),  # 数据库端口
     }
 }
 
