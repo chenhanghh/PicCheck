@@ -1,8 +1,7 @@
 from django.urls import path
 
 from users import views
-from users.views import SmsCodeView, LoginPasswordView, \
-    RegisterView, UserInfoView, ResetPasswordView, \
+from users.views import SmsCodeView, LoginPasswordView, RegisterView, UserInfoView, ResetPasswordView, \
     ModifyUserInfoView, VerifySmsCode, LoginSmsView
 
 # 路由 就是指：根据HTTP请求的url路径，设置由哪个函数来处理这个请求。

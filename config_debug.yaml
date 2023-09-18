@@ -1,0 +1,6 @@
+POSTGRESQL:
+  NAME: "picCheck"
+  USER: "postgres"
+  PASSWORD: "chch1778"
+  HOST: "localhost"
+  PORT: "5432"

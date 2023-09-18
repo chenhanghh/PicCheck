@@ -16,6 +16,8 @@ import datetime
 
 from PicCheck import postgresql_cfg
 
+import os
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -157,3 +159,8 @@ CACHES = {
 # 引用Django自带的User表，继承使用时需要设置
 # 替换 系统的User 来使用自定义的User
 AUTH_USER_MODEL = "common.User"
+
+# 上传文件目录
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media/')
+# 设置文件访问的统一路由
+MEDIA_URL = '/upload/'
