@@ -3,11 +3,11 @@ from django.db import transaction
 from django.db.models import Count, Q
 from common.models import Project, ProjectUser, Folder, File
 import json
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse, FileResponse
 
 import logging
 
-from common.forms import FileFieldForm
+from projects.forms import FileFieldForm
 from django.views.generic.edit import FormView
 
 import os
@@ -41,37 +41,45 @@ class AddProjectView(View):
             return JsonResponse({'code': 400, 'msg': '项目新建异常！'})
 
 
-# 根据文件夹id，删除文件夹
-def delfolder(folder_id):
+# 删除文件夹
+def del_folder(folder_id):
+    # 获取要删除的文件夹对象
     folder = Folder.objects.get(id=folder_id)
-    with transaction.atomic():
-        files = File.objects.filter(folder_id=folder_id).values_list('id')
-        fileslist = list(files)
-        for f in range(len(fileslist)):
-            file = File.objects.get(id=fileslist[f][0])
+
+    # 递归删除文件夹内的子文件夹和子文件
+    def delete_contents(folder):
+        # 子文件夹
+        for subfolder in Folder.objects.filter(parent_folder_id=folder.id):
+            delete_contents(subfolder)
+            # 删除与子文件夹相关的内容
+            subfolder.delete()
+        # 子文件
+        for file in File.objects.filter(folder_id=folder.id):
             filepath = 'media/' + file.file.name
             # 删除存储文件
             os.remove(filepath)
             # 删除数据库中记录
             file.delete()
-        # 再删除文件夹记录
-        folder.delete()
+
+    delete_contents(folder)
+    # 删除数据库中与该文件夹相关的内容
+    folder.delete()
 
 
 # 删除项目
 class DelProjectView(View):
     def post(self, request):
         # 获取项目id
-        project_id = request.POST.get('id')
+        project_id = request.POST.get('project_id')
         try:
             project = Project.objects.get(id=project_id)
 
             with transaction.atomic():
                 # 删除项目内所有文件夹、文件
-                folders = Folder.objects.filter(project_id=project_id).values_list('id')
+                folders = Folder.objects.filter(project_id=project_id).values('id')
                 folderslist = list(folders)
-                for f in range(len(folderslist)):
-                    delfolder(folderslist[f][0])
+                for f in folderslist:
+                    del_folder(f['id'])
                 # 先删除 ProjectUser 里面的记录
                 ProjectUser.objects.filter(project_id=project_id).delete()
                 # 再删除项目记录
@@ -90,10 +98,11 @@ class DelProjectView(View):
 class AddFolderView(View):
     def post(self, request):
         try:
-            # 获取文件夹名、所属项目id
+            # 获取文件夹名、所属项目id、所属父文件夹id
             title = request.POST.get('title')
             project_id = request.POST.get('project_id')
-            new_folder = Folder.objects.create(title=title, project_id=project_id)
+            parent_folder_id = request.POST.get('parent_folder_id')
+            new_folder = Folder.objects.create(title=title, project_id=project_id, parent_folder_id=parent_folder_id)
             return JsonResponse({'code': 200, 'msg': '文件夹新建成功！', 'id': new_folder.id})
 
         except Exception as e:
@@ -108,16 +117,19 @@ class UploadFilesView(FormView):
 
     def post(self, request, *args, **kwargs):
         try:
+
+            # form = FileFieldForm(request.POST, request.FILES)
+
             # 接收参数
             user_id = request.POST.get('user_id')
             folder_id = request.POST.get('folder_id')
 
             form_class = self.get_form_class()
             form = self.get_form(form_class)
-            # 获取多个文件上传的文件列表
-            files = request.FILES.getlist('file_field')
             # 判断表单数据是否合法
             if form.is_valid():
+                # 获取多个文件上传的文件列表
+                files = request.FILES.getlist('file')
                 for f in files:
                     title = f.name
                     size = f.size
@@ -128,7 +140,8 @@ class UploadFilesView(FormView):
                                                    file=f)
                 return JsonResponse({'code': 200, 'msg': '文件上传成功！'})
             else:
-                return JsonResponse({'code': 400, 'msg': '文件上传失败！'})
+                error_messages = form.errors
+                return JsonResponse({'code': 400, 'msg': '文件上传失败！', 'error': error_messages})
 
         except Exception as e:
             logger.error(e)
@@ -141,6 +154,7 @@ class UploadFileView(View):
         try:
             # 接收参数
             user_id = request.POST.get('user_id')
+            project_id = request.POST.get('project_id')
             folder_id = request.POST.get('folder_id')
             file = request.FILES.get('file')
             title = file.name
@@ -150,6 +164,7 @@ class UploadFileView(View):
             else:
                 new_file = File.objects.create(title=title,
                                                user_id=user_id,
+                                               project_id=project_id,
                                                folder_id=folder_id,
                                                size=size,
                                                file=file)
@@ -172,6 +187,7 @@ class DelFileView(View):
             for f_id in id_list:
                 file_id = f_id['id']
                 file = File.objects.get(id=file_id)
+                # 拼接文件的完整路径
                 filepath = 'media/' + file.file.name
                 # 删除存储文件
                 os.remove(filepath)
@@ -187,13 +203,15 @@ class DelFileView(View):
 # 文件重命名
 class RenFileView(View):
     def post(self, request):
-        # 获取文件id及所属文件夹id
+        # 获取文件id及所属文件夹id、所属项目id
         file_id = request.POST.get('file_id')
         folder_id = request.POST.get('folder_id')
+        project_id = request.POST.get('project_id')
         try:
             new_title = request.POST.get('new_title')
             file = File.objects.get(id=file_id)
-            if File.objects.filter(title=new_title, folder_id=folder_id):
+
+            if File.objects.filter(title=new_title, folder_id=folder_id, project_id=project_id):
                 return JsonResponse({'code': 400, 'msg': '文件名已存在，请重新命名！'})
             else:
                 filepath = 'media/' + file.file.name
@@ -204,8 +222,18 @@ class RenFileView(View):
 
                 new_filepath = 'media/' + file.file.name
                 # 文件保存路径下重命名
+                if os.path.exists(new_filepath):
+                    # 如果新文件路径已存在，添加数字后缀
+                    base_name, ext = os.path.splitext(new_filepath)
+                    counter = 1
+                    while os.path.exists(new_filepath):
+                        new_filepath = f"{base_name}_{counter}{ext}"
+                        parts = new_title.split(".")
+                        file.file.name = os.path.dirname(file.file.name) + '/' + f"{parts[0]}_.{counter}{parts[1]}"
+                        file.save()
+                        counter += 1
                 os.rename(filepath, new_filepath)
-                return JsonResponse({'code': 200, 'msg': '文件重命名成功！'})
+            return JsonResponse({'code': 200, 'msg': '文件重命名成功！'})
 
         except File.DoesNotExist:
             return JsonResponse({'code': 400, 'msg': f'id 为`{file_id}`的文件不存在'})
@@ -223,7 +251,9 @@ class FileInfoView(View):
         try:
             file = File.objects.get(id=file_id)
             filepath = 'media/' + file.file.name
-            return JsonResponse({'code': 200, 'msg': '文件获取成功', 'filepath': filepath})
+
+            # 使用FileResponse返回文件给用户
+            return FileResponse(open(filepath, 'rb'))
         except File.DoesNotExist:
             return JsonResponse({'code': 400, 'msg': f'id 为`{file_id}`的文件不存在'})
 
@@ -237,24 +267,28 @@ class DelFolderView(View):
             # 解析字符串
             id_list = json.loads(id_list)
             for f_id in id_list:
-                folder_id = f_id['id']
-                delfolder(folder_id)
+                del_folder(f_id['id'])
             return JsonResponse({'code': 200, 'msg': '文件夹删除成功！'})
         except Exception as e:
             logger.error(e)
             return JsonResponse({'code': 400, 'msg': '文件夹删除异常！'})
 
 
-# 获取文件夹内文件信息
+# 获取文件夹内目录信息
 class FolderInfoView(View):
     def post(self, request):
         # 获取文件夹id
         folder_id = request.POST.get('folder_id')
         try:
+            # 子文件
             files = File.objects.filter(folder_id=folder_id).values('id', 'title', 'create_date',
                                                                     'user_id', 'size')
             fileslist = list(files)
-            return JsonResponse({'code': 200, 'msg': '文件夹获取成功！', 'fileslist': fileslist})
+            # 子文件夹
+            folders = Folder.objects.filter(parent_folder_id=folder_id).values('id', 'title', 'create_date')
+            folderslist = list(folders)
+            return JsonResponse(
+                {'code': 200, 'msg': '文件夹获取成功！', 'fileslist': fileslist, 'folderslist': folderslist})
         except Exception as e:
             logger.error(e)
             return JsonResponse({'code': 400, 'msg': '文件夹获取异常！'})
@@ -274,7 +308,7 @@ class RenFolderView(View):
             return {'code': 400, 'msg': f'id 为`{folder_id}`的文件夹不存在'}
 
 
-# 获取项目内文件夹信息
+# 获取项目内目录信息
 class ProjectInfoView(View):
     def post(self, request):
         # 获取项目id
@@ -284,7 +318,10 @@ class ProjectInfoView(View):
                 'id', 'create_date', 'file_count'
             )
             folderslist = list(folders)
-            return JsonResponse({'code': 200, 'msg': '文件夹获取成功！', 'folderslist': folderslist})
+            files = File.objects.filter(folder_id='null').values('id', 'title', 'create_date',
+                                                                 'user_id', 'size')
+            fileslist = list(files)
+            return JsonResponse({'code': 200, 'msg': '文件夹获取成功！', 'folderslist': folderslist, 'fileslist': fileslist})
         except Exception as e:
             logger.error(e)
             return JsonResponse({'code': 400, 'msg': '文件夹获取异常！'})
@@ -311,17 +348,11 @@ class SearchView(View):
         keywords = request.POST.get('keywords')
         project_id = request.POST.get('project_id')
         try:
-            folders = Folder.objects.filter(project_id=project_id).values_list('id')
-            folderslist = list(folders)
-            file_list = []
-            for f in range(len(folderslist)):
-                folder_id = folderslist[f][0]
-                files = File.objects.filter(Q(folder_id=folder_id) & Q(title__icontains=keywords)).values(
-                    'id', 'title', 'create_date', 'user_id', 'size'
-                )
-                fileslist = list(files)
-                file_list += fileslist
-            return JsonResponse({'code': 200, 'msg': '文件搜索成功！', 'file_list': file_list})
+            files = File.objects.filter(Q(project_id=project_id) & Q(title__icontains=keywords)).values(
+                'id', 'title', 'create_date', 'user_id', 'size'
+            )
+            fileslist = list(files)
+            return JsonResponse({'code': 200, 'msg': '文件搜索成功！', 'file_list': fileslist})
         except Exception as e:
             logger.error(e)
             return JsonResponse({'code': 400, 'msg': '文件搜索异常！'})

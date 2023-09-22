@@ -164,3 +164,24 @@ AUTH_USER_MODEL = "common.User"
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media/')
 # 设置文件访问的统一路由
 MEDIA_URL = '/upload/'
+
+# 配置日志
+LOGGING_DIR = os.path.join(BASE_DIR, 'logs')  # 创建一个存储日志文件的目录
+if not os.path.exists(LOGGING_DIR):
+    os.makedirs(LOGGING_DIR)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'file': {
+            'level': 'ERROR',  # 只记录ERROR级别的日志
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOGGING_DIR, 'error.log'),  # 指定日志文件路径
+        },
+    },
+    'root': {
+        'handlers': ['file'],
+        'level': 'ERROR',
+    },
+}

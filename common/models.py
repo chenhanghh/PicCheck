@@ -1,8 +1,7 @@
+# 定义数据库表 项目所需要的公共表
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
-# Create your models here.
-# 定义数据库表 项目所需要的公共表
 
 
 class User(AbstractUser):
@@ -20,11 +19,12 @@ class User(AbstractUser):
     gender = models.CharField(max_length=32, choices=gender_, default='男')
     # 地区
     scope = models.CharField(max_length=256)
-    # # 所属项目
-    # project = models.CharField(max_length=256)
 
     # 创建超级管理员必须输入的字段
     REQUIRED_FIELDS = ['phonenumber']
+
+    def __str__(self):
+        return self.username
 
 
 class Project(models.Model):
@@ -34,10 +34,11 @@ class Project(models.Model):
     create_date = models.DateTimeField(default=timezone.now)
     # 项目中包含的用户，和User表是多对多的关系
     users = models.ManyToManyField(User, through='ProjectUser')
-    # # 项目中包含的文件夹，和Folder表是多对多的关系
-    # folders = models.ManyToManyField(Folder, through='ProjectFolder')
 
     userlist = models.CharField(max_length=500, null=True, blank=True)
+
+    def __str__(self):
+        return self.name
 
 
 class ProjectUser(models.Model):
@@ -51,14 +52,19 @@ class Folder(models.Model):
     # 创建日期
     create_date = models.DateTimeField(default=timezone.now)
     # 文件夹所属项目 一对多关系
-    project = models.ForeignKey(Project, on_delete=models.PROTECT)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    # 形成递归结构，允许在文件夹内创建子文件夹
+    parent_folder = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.title
 
 
 class File(models.Model):
     # 文件名
     title = models.CharField(max_length=50)
     # 文件所属文件夹 一对多关系
-    folder = models.ForeignKey(Folder, on_delete=models.PROTECT)
+    folder = models.ForeignKey(Folder, on_delete=models.CASCADE, null=True, blank=True)
     # 文件
     file = models.FileField(upload_to='uploads/%Y%m%d/', null=True, blank=True)
     # 文件大小
@@ -67,3 +73,8 @@ class File(models.Model):
     create_date = models.DateTimeField(default=timezone.now)
     # 文件所属用户 一对多关系
     user = models.ForeignKey(User, on_delete=models.PROTECT)
+    # 文件所属项目
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.title
