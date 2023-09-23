@@ -1,45 +1,39 @@
 from django.urls import path
 
-from projects import views
-from projects.views import AddProjectView, DelProjectView, AddFolderView, UploadFilesView, UploadFileView, DelFileView, \
-    RenFileView, FileInfoView, DelFolderView, FolderInfoView, RenFolderView, ProjectInfoView, RenProjectView, SearchView
-
-# from users.views import
+from projects.views import AddProjectAPI, UploadFileAPI, AddFolderAPI, DelFileAPI, FileRetrieveAPI, DelFolderAPI, \
+    FolderRenameAPI, FolderInfoAPI, ProjectInfoAPI, ProjectRenameAPI, DelProjectAPI, SearchAPI
 
 # 路由 就是指：根据HTTP请求的url路径，设置由哪个函数来处理这个请求。
 # urlpatterns 列表：Django 的 url 路由的入口
 urlpatterns = [
 
     # 创建项目
-    path('api/addproject/', AddProjectView.as_view()),
+    path('api/addproject/', AddProjectAPI.as_view()),
     # 删除项目
-    path('api/delproject/', DelProjectView.as_view()),
+    path('api/delproject/<int:project_id>/', DelProjectAPI.as_view()),
     # 获取项目文件夹目录
-    path('api/projectinfo/', ProjectInfoView.as_view()),
+    path('api/projectinfo/<int:project_id>/', ProjectInfoAPI.as_view()),
     # 项目重命名
-    path('api/renproject/', RenProjectView.as_view()),
+    path('api/renproject/<int:project_id>/', ProjectRenameAPI.as_view()),
 
     # 新建文件夹
-    path('api/addfolder/', AddFolderView.as_view()),
+    path('api/addfolder/', AddFolderAPI.as_view()),
     # 删除文件夹
-    path('api/delfolder/', DelFolderView.as_view()),
+    path('api/delfolder/', DelFolderAPI.as_view()),
     # 获取文件夹内文件目录
-    path('api/folderinfo/', FolderInfoView.as_view()),
+    path('api/folderinfo/<int:folder_id>/', FolderInfoAPI.as_view()),
     # 文件夹重命名
-    path('api/renfolder/', RenFolderView.as_view()),
+    path('api/renfolder/<int:folder_id>/', FolderRenameAPI.as_view()),
 
     # 上传文件
-    path('uploads/', UploadFilesView.as_view()),
-    path('upload/', UploadFileView.as_view()),
+    path('api/upload/', UploadFileAPI.as_view()),
     # 删除文件
-    path('api/delfile/', DelFileView.as_view()),
-    # 文件重命名
-    path('api/renfile/', RenFileView.as_view()),
+    path('api/files/bulk_delete/', DelFileAPI.as_view()),
     # 获取文件
-    path('api/fileinfo/', FileInfoView.as_view()),
+    path('api/file/<int:pk>/', FileRetrieveAPI.as_view()),
 
     # 搜索文件
-    path('search/', SearchView.as_view()),
+    path('search/', SearchAPI.as_view()),
 
 ]
 
