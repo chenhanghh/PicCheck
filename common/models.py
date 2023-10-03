@@ -19,6 +19,10 @@ class User(AbstractUser):
     # 创建超级管理员必须输入的字段
     REQUIRED_FIELDS = ['phonenumber']
 
+    class Meta:
+        verbose_name = '用户'
+        verbose_name_plural = verbose_name
+
     def __str__(self):
         return self.username
 
@@ -30,6 +34,10 @@ class Project(models.Model):
     users = models.ManyToManyField(User, verbose_name='项目包含用户', through='ProjectUser')
 
     # userlist = models.CharField(max_length=500, verbose_name='项目包含用户列表', null=True, blank=True)
+
+    class Meta:
+        verbose_name = '项目'
+        verbose_name_plural = verbose_name
 
     def __str__(self):
         return self.name
@@ -47,6 +55,10 @@ class Folder(models.Model):
     # 形成递归结构，允许在文件夹内创建子文件夹
     parent_folder = models.ForeignKey('self', verbose_name='父文件夹', null=True, blank=True, on_delete=models.CASCADE)
 
+    class Meta:
+        verbose_name = '项目文件夹'
+        verbose_name_plural = verbose_name
+
     def __str__(self):
         return self.title
 
@@ -56,10 +68,29 @@ class File(models.Model):
     folder = models.ForeignKey(Folder, related_name='files', verbose_name='所属文件夹', on_delete=models.CASCADE,
                                null=True, blank=True)
     project = models.ForeignKey(Project, related_name='files', verbose_name='所属项目', on_delete=models.CASCADE)
-    file = models.FileField(upload_to='uploads/%Y%m%d/', verbose_name='文件', null=True, blank=True)
+    file = models.FileField(upload_to='uploads/projects/%Y%m%d/', verbose_name='文件', null=True, blank=True)
     create_date = models.DateTimeField(default=timezone.now, verbose_name='创建时间')
     file_name = models.CharField(max_length=50, verbose_name='文件名')
     file_size = models.PositiveIntegerField()  # 文件大小
+
+    class Meta:
+        verbose_name = '项目文件'
+        verbose_name_plural = verbose_name
+
+    def __str__(self):
+        return self.file_name
+
+
+class FileinUser(models.Model):
+    user = models.ForeignKey(User, verbose_name='所属用户', on_delete=models.CASCADE)
+    file = models.FileField(upload_to='uploads/users/%Y%m%d/', verbose_name='文件', null=True, blank=True)
+    create_date = models.DateTimeField(default=timezone.now, verbose_name='创建时间')
+    file_name = models.CharField(max_length=50, verbose_name='文件名')
+    file_size = models.PositiveIntegerField()  # 文件大小
+
+    class Meta:
+        verbose_name = '个人文件'
+        verbose_name_plural = verbose_name
 
     def __str__(self):
         return self.file_name

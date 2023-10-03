@@ -12,7 +12,7 @@ def get_env():
 
 def load_config():
     env = get_env()
-    path = f"config_{env}.yaml"
+    path = f"D:/projects/PicCheck/config_{env}.yaml"
     with open(path, encoding='utf-8') as f:
         cfg = yaml.load(f.read(), Loader=yaml.FullLoader)
         print(f"当前运行环境:{env}")

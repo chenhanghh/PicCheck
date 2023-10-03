@@ -44,16 +44,37 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
 
-    "common.apps.CommonConfig",
-
     # jwt
     'rest_framework',
-    'rest_framework_jwt',
+    'rest_framework_jwt',  # 提供JWT身份验证功能
+
+    "common.apps.CommonConfig",
+    "users.apps.UsersConfig",
+    "projects.apps.ProjectsConfig",
+    "camera.apps.CameraConfig",
+    "recognition.apps.RecognitionConfig",
+
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+}
 
 JWT_AUTH = {
     'JWT_EXPIRATION_DELTA': datetime.timedelta(days=7),
-    'JWT_ALLOW_REFRESH': True
+    'JWT_ALLOW_REFRESH': True,  # 允许刷新令牌
+    'JWT_REFRESH_EXPIRATION_DELTA': datetime.timedelta(days=7),  # 刷新令牌的过期时间
+}
+
+# 设置JWT令牌的有效期，以秒为单位，默认为15分钟
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': datetime.timedelta(days=1),  # 修改为你需要的有效期
+    'SLIDING_TOKEN_REFRESH_LIFETIME': datetime.timedelta(days=1),  # 可选：滑动令牌的刷新有效期
+    'SLIDING_TOKEN_LIFETIME': datetime.timedelta(days=30),  # 可选：滑动令牌的有效期
+    'SLIDING_TOKEN_REFRESH_ON_LOGIN': True,  # 可选：用户登录时是否刷新滑动令牌
 }
 
 MIDDLEWARE = [
@@ -173,15 +194,47 @@ if not os.path.exists(LOGGING_DIR):
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
-    'handlers': {
-        'file': {
-            'level': 'ERROR',  # 只记录ERROR级别的日志
+    'formatters': {  # 格式化器
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {  # 记录不同级别日志的处理程序
+        'file_debug': {
+            'level': 'DEBUG',
             'class': 'logging.FileHandler',
-            'filename': os.path.join(LOGGING_DIR, 'error.log'),  # 指定日志文件路径
+            'filename': os.path.join(LOGGING_DIR, 'debug.log'),
+            'formatter': 'verbose',
+        },
+        'file_error': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(LOGGING_DIR, 'error.log'),
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file_debug', 'file_error', 'console'],
+            'level': 'DEBUG',
+            'propagate': True,
         },
     },
     'root': {
-        'handlers': ['file'],
-        'level': 'ERROR',
+        'handlers': ['file_debug', 'file_error', 'console'],
+        'level': 'INFO',
     },
 }
+
+# 定义裂缝识别算法路径
+ALGORITHM_URL = "https://wx.conre.com.cn/dev/yolov5-crack/predict"

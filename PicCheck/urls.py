@@ -26,6 +26,11 @@ urlpatterns = [
     path('users/', include('users.urls')),
 
     path('projects/', include('projects.urls')),
+
+    path('camera/', include('camera.urls')),
+
+    path('recognition/', include('recognition.urls')),
+
 ]
 
 # # 文件访问路由

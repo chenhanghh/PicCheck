@@ -23,6 +23,8 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 # 文件上传
 class FileAddSerializer(serializers.ModelSerializer):
+    # 自动将当前请求的用户关联到user字段
+    user = serializers.HiddenField(default=serializers.CurrentUserDefault())
 
     class Meta:
         model = File

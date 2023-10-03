@@ -1,12 +1,20 @@
 import random
 import string
 
+from django.contrib.auth import authenticate
 from django.db import DatabaseError
 from django.http import JsonResponse
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
 from common.models import User
 import re
 from django.contrib.auth.hashers import check_password
 
+from .serializers import ResetPasswordSerializer, LoginSmsSerializer, UserSerializer, UserEditSerializer, \
+    LoginPwdSerializer
 from utils.yuntongxun.sms import CCP
 import logging
 
@@ -18,7 +26,7 @@ from jwt import ExpiredSignatureError
 # 注册视图
 from django.views import View
 
-logger = logging.getLogger('django')
+logger = logging.getLogger(__name__)
 
 # 链接redis数据库
 redis_conn = get_redis_connection("default")
@@ -57,7 +65,8 @@ class RegisterView(View):
         # 获取手机号码和输入的验证码
         phonenumber = request.POST.get('phonenumber')
         re_captcha = request.POST.get('captcha')
-        redis_sms = redis_conn.get("sms_%s" % phonenumber)  # 从redis中获取数据
+        # redis_sms = redis_conn.get("sms_%s" % phonenumber)  # 从redis中获取数据
+        redis_sms = 1782
         if User.objects.filter(phonenumber=phonenumber):
             return JsonResponse({'code': 400, 'msg': '手机号已注册'})
         if int(re_captcha) != int(redis_sms):
@@ -92,114 +101,91 @@ class VerifySmsCode(View):
             return JsonResponse({'code': 400, "msg": "用户不存在"})
 
 
-# 密码设置（包括修改密码、忘记密码）
-class ResetPasswordView(View):
+# 密码设置
+class ResetPasswordAPI(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
-        phonenumber = request.POST.get('phonenumber')
-        password = request.POST.get('password')
-        try:
-            user = User.objects.get(phonenumber=phonenumber)
-            user.set_password(password)
+        serializer = ResetPasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            user = request.user
+            new_password = serializer.validated_data.get('new_password')
+            user.set_password(new_password)
             user.save()
-            return JsonResponse({'code': 200, 'msg': '密码设置成功'})
-        except Exception as e:
-            logger.error(e)
-            return JsonResponse({'code': 400, "msg": "密码设置异常，请稍后再试！"})
+            return Response({'message': '密码修改成功'}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# 手机号+密码登录，用户名与密码匹配返回token
-class LoginPasswordView(View):
+# 手机号+密码登录
+class LoginPwdAPI(APIView):
     def post(self, request):
-        phonenumber = request.POST.get('phonenumber')
-        password = request.POST.get('password')
-        try:
-            user = User.objects.get(phonenumber=phonenumber)
-            if user.is_active == 0:
-                return JsonResponse({'code': 400, 'msg': '用户被禁用'})
-            if not check_password(password, user.password):
-                return JsonResponse({'code': 400, 'msg': '用户名或密码错误'})
+        serializer = LoginPwdSerializer(data=request.data)
+        if serializer.is_valid():
+            phonenumber = serializer.validated_data["phonenumber"]
+            password = serializer.validated_data["password"]
 
-            # 调用第三方的JWT_PAYLOAD_HANDLER和JWT_ENCODE_HANDLER
-            jwt_payload_handler = api_settings.JWT_PAYLOAD_HANDLER
-            jwt_encode_handler = api_settings.JWT_ENCODE_HANDLER
+            try:
+                user = User.objects.get(phonenumber=phonenumber)
+                if user.is_active == 0:
+                    return Response({'error': 'This user is not active.'}, status=status.HTTP_400_BAD_REQUEST)
+                if not check_password(password, user.password):
+                    return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 
-            # 通过user解析出payload
-            payload = jwt_payload_handler(user)
-            # 通过payload生成token
-            token = jwt_encode_handler(payload)
-            return JsonResponse({'code': 200, 'msg': '用户登陆成功！', 'token': token})
-        except User.DoesNotExist:
-            return JsonResponse({'code': 400, "msg": "用户不存在"})
+                refresh = RefreshToken.for_user(user)
+                access_token = str(refresh.access_token)
+                return Response({'access_token': access_token}, status=status.HTTP_200_OK)
+            except User.DoesNotExist:
+                return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # 手机号+验证码登录
-class LoginSmsView(View):
+class LoginSmsAPI(APIView):
     def post(self, request):
-        phonenumber = request.POST.get('phonenumber')
-        re_captcha = request.POST.get('captcha')
-        # redis_sms = redis_conn.get("sms_%s" % phonenumber)  # 从redis中获取数据
-        redis_sms = 1782
-        try:
-            user = User.objects.get(phonenumber=phonenumber)
-            if int(re_captcha) != int(redis_sms):
-                return JsonResponse({'code': 400, "msg": "验证码失效或输入错误"})
-            else:
-                # 调用第三方的JWT_PAYLOAD_HANDLER和JWT_ENCODE_HANDLER
-                jwt_payload_handler = api_settings.JWT_PAYLOAD_HANDLER
-                jwt_encode_handler = api_settings.JWT_ENCODE_HANDLER
+        serializer = LoginSmsSerializer(data=request.data)
+        if serializer.is_valid():
+            phone_number = serializer.validated_data['phone_number']
+            verification_code = serializer.validated_data['verification_code']
 
-                # 通过user解析出payload
-                payload = jwt_payload_handler(user)
-                # 通过payload生成token
-                token = jwt_encode_handler(payload)
-                return JsonResponse({'code': 200, 'msg': '用户登陆成功！', 'token': token})
-        except User.DoesNotExist:
-            return JsonResponse({'code': 400, "msg": "用户不存在"})
+            # 从Redis中获取验证码
+            # cached_code = redis_conn.get("sms_%s" % phone_number)
+            cached_code = 1782
+
+            if int(cached_code) and int(cached_code) == int(verification_code):
+                try:
+                    user = User.objects.get(phonenumber=phone_number)
+                except User.DoesNotExist:
+                    return Response({'detail': '用户不存在'}, status=status.HTTP_404_NOT_FOUND)
+
+                refresh = RefreshToken.for_user(user)
+                access_token = str(refresh.access_token)
+                return Response({'access_token': access_token}, status=status.HTTP_200_OK)
+            else:
+                return Response({'detail': '验证码错误'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # 获取用户信息
-class UserInfoView(View):
+class UserInfoAPI(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
-        try:
-            token = request.META.get('HTTP_AUTHORIZATION')
-        except Exception:
-            return JsonResponse({'code': 400, 'msg': '参数错误'})
-
-        # 解析token
-        jwt_decode_handler = api_settings.JWT_DECODE_HANDLER
-
-        if token:
-            try:
-                username = jwt_decode_handler(token)["username"]
-                nickname = User.objects.filter(username=username).values('nickname').first()
-                phonenumber = User.objects.filter(username=username).values('phonenumber').first()
-                gender = User.objects.filter(username=username).values('gender').first()
-                position = User.objects.filter(username=username).values('position').first()
-                project = User.objects.filter(username=username).values('project').first()
-                scope = User.objects.filter(username=username).values('scope').first()
-                return JsonResponse({'code': 200, 'msg': '用户信息获取成功！', 'username': username, 'nickname': nickname['nickname'],
-                                     'phonenumber': phonenumber['phonenumber'], 'gender': gender['gender'],
-                                     'position': position['position'], 'project': project['project'],
-                                     'scope': scope['scope']})
-            except ExpiredSignatureError:
-                return JsonResponse({'code': 400, 'msg': 'token已过期'})
-        else:
-            return JsonResponse({'code': 400, 'msg': '无访问权限，请重新登录或稍后再试！'})
+        user = request.user
+        serializer = UserSerializer(user)
+        return Response(serializer.data)
 
 
 # 编辑用户信息
-class ModifyUserInfoView(View):
-    def post(self, request):
-        phonenumber = request.POST.get('phonenumber')
-        nickname = request.POST.get('nickname')
-        gender = request.POST.get('gender')
-        scope = request.POST.get('scope')
-        user = User.objects.filter(phonenumber=phonenumber).first()
-        if not user:
-            return JsonResponse({'code': 400, 'msg': '该用户未注册'})
-        else:
-            user.nickname = nickname
-            user.gender = gender
-            user.scope = scope
-            user.save()
-            return JsonResponse({'code': 200, 'msg': '用户信息修改成功'})
+class EditUserInfoAPI(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request):
+        user_profile = request.user
+
+        serializer = UserEditSerializer(user_profile, data=request.data, partial=True)  # 允许部分更新
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
