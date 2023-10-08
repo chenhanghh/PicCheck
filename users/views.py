@@ -14,14 +14,12 @@ import re
 from django.contrib.auth.hashers import check_password
 
 from .serializers import ResetPasswordSerializer, LoginSmsSerializer, UserSerializer, UserEditSerializer, \
-    LoginPwdSerializer
+    LoginPwdSerializer, UserRegisterSerializer, VerifySmsCodeSerializer
+
 from utils.yuntongxun.sms import CCP
 import logging
 
 from django_redis import get_redis_connection
-
-from rest_framework_jwt.settings import api_settings
-from jwt import ExpiredSignatureError
 
 # 注册视图
 from django.views import View
@@ -30,8 +28,6 @@ logger = logging.getLogger(__name__)
 
 # 链接redis数据库
 redis_conn = get_redis_connection("default")
-
-# redis_sms = redis_conn.get("sms_%s" % mobile)   #从redis中获取数据，或者删除数据等操作
 
 
 # 发送验证码
@@ -60,49 +56,30 @@ class SmsCodeView(View):
 
 
 # 手机号+验证码注册
-class RegisterView(View):
+class UserRegistrationAPI(APIView):
     def post(self, request):
-        # 获取手机号码和输入的验证码
-        phonenumber = request.POST.get('phonenumber')
-        re_captcha = request.POST.get('captcha')
-        # redis_sms = redis_conn.get("sms_%s" % phonenumber)  # 从redis中获取数据
-        redis_sms = 1782
-        if User.objects.filter(phonenumber=phonenumber):
-            return JsonResponse({'code': 400, 'msg': '手机号已注册'})
-        if int(re_captcha) != int(redis_sms):
-            return JsonResponse({'code': 400, "msg": "验证码失效或输入错误"})
-        else:
-            try:
-                # 随机生成一个用户名
-                user_name = ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(8))
-                record = User.objects.create_user(phonenumber=phonenumber,
-                                                  username=user_name
-                                                  )
-                return JsonResponse({'code': 200, "msg": "注册成功！"})
-            except DatabaseError as e:
-                logger.error(e)
-                return JsonResponse({'code': 400, "msg": "注册失败"})
+        serializer = UserRegisterSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'New users registered.'}, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# 用户手机号验证
-class VerifySmsCode(View):
+class VerifySmsCodeAPI(APIView):
+    """
+    用户手机号验证
+    """
     def post(self, request):
-        # 获取手机号码和输入的验证码
-        phonenumber = request.POST.get('phonenumber')
-        re_captcha = request.POST.get('captcha')
-        redis_sms = redis_conn.get("sms_%s" % phonenumber)  # 从redis中获取数据
-        try:
-            user = User.objects.get(phonenumber=phonenumber)
-            if int(re_captcha) != int(redis_sms):
-                return JsonResponse({'code': 400, "msg": "验证码失效或输入错误"})
-            else:
-                return JsonResponse({'code': 200, "msg": "验证成功"})
-        except User.DoesNotExist:
-            return JsonResponse({'code': 400, "msg": "用户不存在"})
+        serializer = VerifySmsCodeSerializer(data=request.data)
+        if serializer.is_valid():
+            return Response({'message': 'Captcha is successfully verified.'}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# 密码设置
 class ResetPasswordAPI(APIView):
+    """
+    密码设置
+    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -112,12 +89,14 @@ class ResetPasswordAPI(APIView):
             new_password = serializer.validated_data.get('new_password')
             user.set_password(new_password)
             user.save()
-            return Response({'message': '密码修改成功'}, status=status.HTTP_200_OK)
+            return Response({'message': 'Password changed successfully.'}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# 手机号+密码登录
 class LoginPwdAPI(APIView):
+    """
+    手机号+密码登录
+    """
     def post(self, request):
         serializer = LoginPwdSerializer(data=request.data)
         if serializer.is_valid():
@@ -140,21 +119,23 @@ class LoginPwdAPI(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# 手机号+验证码登录
 class LoginSmsAPI(APIView):
+    """
+    手机号+验证码登录
+    """
     def post(self, request):
         serializer = LoginSmsSerializer(data=request.data)
         if serializer.is_valid():
-            phone_number = serializer.validated_data['phone_number']
-            verification_code = serializer.validated_data['verification_code']
+            phonenumber = serializer.validated_data['phonenumber']
+            captcha = serializer.validated_data['captcha']
 
             # 从Redis中获取验证码
             # cached_code = redis_conn.get("sms_%s" % phone_number)
             cached_code = 1782
 
-            if int(cached_code) and int(cached_code) == int(verification_code):
+            if int(cached_code) and int(cached_code) == int(captcha):
                 try:
-                    user = User.objects.get(phonenumber=phone_number)
+                    user = User.objects.get(phonenumber=phonenumber)
                 except User.DoesNotExist:
                     return Response({'detail': '用户不存在'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -166,8 +147,10 @@ class LoginSmsAPI(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-# 获取用户信息
 class UserInfoAPI(APIView):
+    """
+    获取用户信息
+    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -176,8 +159,10 @@ class UserInfoAPI(APIView):
         return Response(serializer.data)
 
 
-# 编辑用户信息
 class EditUserInfoAPI(APIView):
+    """
+    编辑用户信息
+    """
     permission_classes = [IsAuthenticated]
 
     def put(self, request):

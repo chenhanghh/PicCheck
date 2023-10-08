@@ -1,9 +1,10 @@
 from django.urls import path
 
 from users import views
-from users.views import SmsCodeView, RegisterView, VerifySmsCode
+from users.views import SmsCodeView
 
-from users.views import ResetPasswordAPI, LoginPwdAPI, LoginSmsAPI, UserInfoAPI, EditUserInfoAPI
+from users.views import ResetPasswordAPI, LoginPwdAPI, LoginSmsAPI, UserInfoAPI, EditUserInfoAPI, UserRegistrationAPI, \
+    VerifySmsCodeAPI
 
 # 路由 就是指：根据HTTP请求的url路径，设置由哪个函数来处理这个请求。
 # urlpatterns 列表：Django 的 url 路由的入口
@@ -13,10 +14,10 @@ urlpatterns = [
     path('api/sms/', SmsCodeView.as_view()),
 
     # 手机号+验证码注册
-    path('api/register/', RegisterView.as_view()),
+    path('api/register/', UserRegistrationAPI.as_view()),
 
     # 用户手机号验证
-    path('api/smsverify/', VerifySmsCode.as_view()),
+    path('api/sms_verify/', VerifySmsCodeAPI.as_view()),
 
     # 密码设置
     path('api/reset-password/', ResetPasswordAPI.as_view()),

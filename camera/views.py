@@ -6,8 +6,10 @@ from .serializers import ImageSerializer
 from rest_framework.response import Response
 
 
-# 图片上传
 class ImageUploadAPI(generics.CreateAPIView):
+    """
+    图片上传
+    """
     queryset = FileinUser.objects.all()
     serializer_class = ImageSerializer
     permission_classes = [IsAuthenticated]  # 控制访问权限

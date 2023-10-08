@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from common.models import User, FileinUser
+from common.models import FileinUser
 
 
 # 图片上传
