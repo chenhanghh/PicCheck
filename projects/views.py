@@ -2,7 +2,7 @@ from django.db import transaction
 from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
 
-from common.models import Project, ProjectUser, Folder, File, User
+from common.models import Project, ProjectUser, FolderinProject, FileinProject, User
 import os
 
 from rest_framework import generics, status
@@ -54,7 +54,7 @@ class AddFolderAPI(generics.CreateAPIView):
     """
     permission_classes = [IsAuthenticated]
 
-    queryset = Folder.objects.all()
+    queryset = FolderinProject.objects.all()
     serializer_class = FolderSerializer
 
 
@@ -64,7 +64,7 @@ class UploadFileAPI(generics.CreateAPIView):
     上传文件
     """
 
-    queryset = File.objects.all()
+    queryset = FileinProject.objects.all()
     serializer_class = FileAddSerializer
     # 视图能解析多部份表单数据和常规表单数据（如文件上传和文本字段）
     parser_classes = (MultiPartParser, FormParser)
@@ -101,7 +101,7 @@ class DelFileAPI(APIView):
             file_ids = serializer.validated_data['file_ids']
             # 执行批量删除操作
             try:
-                deleted_files = File.objects.filter(id__in=file_ids)
+                deleted_files = FileinProject.objects.filter(id__in=file_ids)
                 for file in deleted_files:
                     # 删除服务器本地文件系统中的文件
                     file_path = 'media/' + file.file.name
@@ -123,24 +123,24 @@ class FileRetrieveAPI(generics.RetrieveAPIView):
     """
     permission_classes = [IsAuthenticated]
 
-    queryset = File.objects.all()
+    queryset = FileinProject.objects.all()
     serializer_class = FileSerializer
 
 
 # 删除文件夹
 def del_folder(folder_id):
     # 获取要删除的文件夹对象
-    folder = Folder.objects.get(id=folder_id)
+    folder = FolderinProject.objects.get(id=folder_id)
 
     # 递归删除文件夹内的子文件夹和子文件
     def delete_contents(folder):
         # 子文件夹
-        for subfolder in Folder.objects.filter(parent_folder_id=folder.id):
+        for subfolder in FolderinProject.objects.filter(parent_folder_id=folder.id):
             delete_contents(subfolder)
             # 删除与子文件夹相关的内容
             subfolder.delete()
         # 子文件
-        for file in File.objects.filter(folder_id=folder.id):
+        for file in FileinProject.objects.filter(folder_id=folder.id):
             filepath = 'media/' + file.file.name
             # 删除存储文件
             os.remove(filepath)
@@ -177,7 +177,7 @@ class FolderRenameAPI(APIView):
     permission_classes = [IsAuthenticated]
 
     def put(self, request, folder_id):
-        folder = Folder.objects.get(pk=folder_id)
+        folder = FolderinProject.objects.get(pk=folder_id)
         serializer = FolderRenameSerializer(data=request.data)
 
         if serializer.is_valid():
@@ -197,12 +197,12 @@ class FolderInfoAPI(APIView):
 
     def get(self, request, folder_id):
         try:
-            folder = Folder.objects.get(pk=folder_id)
-        except Folder.DoesNotExist:
+            folder = FolderinProject.objects.get(pk=folder_id)
+        except FolderinProject.DoesNotExist:
             return Response({"message": "Folder foes not exist."}, status=status.HTTP_404_NOT_FOUND)
 
-        subfolders = Folder.objects.filter(parent_folder_id=folder_id)
-        files = File.objects.filter(folder_id=folder_id)
+        subfolders = FolderinProject.objects.filter(parent_folder_id=folder_id)
+        files = FileinProject.objects.filter(folder_id=folder_id)
 
         subfolder_serializer = FolderInfoSerializer(subfolders, many=True)
         file_serializer = FileInfoSerializer(files, many=True)
@@ -227,8 +227,8 @@ class ProjectInfoAPI(APIView):
         except Project.DoesNotExist:
             return Response({"message": "Project does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
-        subfolders = Folder.objects.filter(parent_folder_id=None, project_id=project_id)
-        files = File.objects.filter(folder_id=None, project_id=project_id)
+        subfolders = FolderinProject.objects.filter(parent_folder_id=None, project_id=project_id)
+        files = FileinProject.objects.filter(folder_id=None, project_id=project_id)
 
         subfolder_serializer = FolderInfoSerializer(subfolders, many=True)
         file_serializer = FileInfoSerializer(files, many=True)
@@ -273,7 +273,7 @@ class DelProjectAPI(APIView):
 
             with transaction.atomic():
                 # 删除项目内所有文件夹、文件
-                folders = Folder.objects.filter(project_id=project_id, parent_folder_id=None).values('id')
+                folders = FolderinProject.objects.filter(project_id=project_id, parent_folder_id=None).values('id')
                 folderslist = list(folders)
                 for f in folderslist:
                     del_folder(f['id'])
@@ -300,8 +300,8 @@ class SearchAPI(APIView):
             project = Project.objects.get(id=project_id)
         except Project.DoesNotExist:
             return Response({"message": "Project does not exist."}, status=status.HTTP_404_NOT_FOUND)
-        files = File.objects.filter(Q(project_id=project_id) & Q(file_name__icontains=keywords))
-        folders = Folder.objects.filter(Q(project_id=project_id) & Q(title__icontains=keywords))
+        files = FileinProject.objects.filter(Q(project_id=project_id) & Q(file_name__icontains=keywords))
+        folders = FolderinProject.objects.filter(Q(project_id=project_id) & Q(title__icontains=keywords))
 
         folder_serializer = FolderInfoSerializer(folders, many=True)
         file_serializer = FileInfoSerializer(files, many=True)

@@ -51,7 +51,6 @@ INSTALLED_APPS = [
     "common.apps.CommonConfig",
     "users.apps.UsersConfig",
     "projects.apps.ProjectsConfig",
-    "camera.apps.CameraConfig",
     "recognition.apps.RecognitionConfig",
 
 ]

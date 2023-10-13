@@ -80,8 +80,14 @@ class GetBoxSAPIView(APIView):
         data = json.loads(box_s_data)
 
         if box_s_data is not None:
+            result_data = data['box_s']['result']
+            result_name = data['box_s']['names']
+            result = {}
+            for n in range(len(result_data)):
+                result[n+1] = result_name[str(result_data[n][5])]
+
             # 如果缓存中存在数据，将其解析为Python对象
-            return Response({'box_s': data['box_s']}, status=status.HTTP_200_OK)
+            return Response({'result': result}, status=status.HTTP_200_OK)
         else:
             return Response({'error': 'Data not found in cache.'}, status=status.HTTP_404_NOT_FOUND)
 

@@ -64,7 +64,7 @@ class LoginPwdSerializer(serializers.Serializer):
 
 # 手机号+验证码登录
 class LoginSmsSerializer(serializers.Serializer):
-    phone_number = serializers.CharField()
+    phonenumber = serializers.CharField()
     captcha = serializers.CharField()
 
 

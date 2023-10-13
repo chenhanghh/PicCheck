@@ -27,11 +27,8 @@ urlpatterns = [
 
     path('projects/', include('projects.urls')),
 
-    path('camera/', include('camera.urls')),
+    # path('camera/', include('camera.urls')),
 
     path('recognition/', include('recognition.urls')),
 
 ]
-
-# # 文件访问路由
-# urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

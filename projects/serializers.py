@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from common.models import User, Project, Folder, File
+from common.models import User, Project, FolderinProject, FileinProject
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -10,7 +10,7 @@ class UserSerializer(serializers.ModelSerializer):
 
 class FolderSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Folder
+        model = FolderinProject
         fields = '__all__'
 
 
@@ -27,7 +27,7 @@ class FileAddSerializer(serializers.ModelSerializer):
     user = serializers.HiddenField(default=serializers.CurrentUserDefault())
 
     class Meta:
-        model = File
+        model = FileinProject
         exclude = ('file_name', 'file_size')
 
 
@@ -39,7 +39,7 @@ class FileDelSerializer(serializers.Serializer):
 # 获取文件信息
 class FileSerializer(serializers.ModelSerializer):
     class Meta:
-        model = File
+        model = FileinProject
         fields = ('id', 'file_name', 'file_size', 'file')
 
 
@@ -51,14 +51,14 @@ class FolderRenameSerializer(serializers.Serializer):
 # 文件夹信息
 class FolderInfoSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Folder
+        model = FolderinProject
         fields = ('id', 'title', 'create_date')
 
 
 # 文件信息
 class FileInfoSerializer(serializers.ModelSerializer):
     class Meta:
-        model = File
+        model = FileinProject
         fields = ('id', 'file_name', 'file_size', 'create_date', 'user')
 
 

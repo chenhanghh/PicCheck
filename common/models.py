@@ -33,8 +33,6 @@ class Project(models.Model):
     # 项目中包含的用户，和User表是多对多的关系
     users = models.ManyToManyField(User, verbose_name='项目包含用户', through='ProjectUser')
 
-    # userlist = models.CharField(max_length=500, verbose_name='项目包含用户列表', null=True, blank=True)
-
     class Meta:
         verbose_name = '项目'
         verbose_name_plural = verbose_name
@@ -48,7 +46,7 @@ class ProjectUser(models.Model):
     user = models.ForeignKey(User, on_delete=models.PROTECT)
 
 
-class Folder(models.Model):
+class FolderinProject(models.Model):
     title = models.CharField(max_length=50, verbose_name='文件夹名')
     create_date = models.DateTimeField(default=timezone.now, verbose_name='创建日期')
     project = models.ForeignKey(Project, verbose_name='所属项目', on_delete=models.CASCADE)
@@ -63,11 +61,11 @@ class Folder(models.Model):
         return self.title
 
 
-class File(models.Model):
-    user = models.ForeignKey(User, related_name='files', verbose_name='所属用户', on_delete=models.CASCADE)
-    folder = models.ForeignKey(Folder, related_name='files', verbose_name='所属文件夹', on_delete=models.CASCADE,
+class FileinProject(models.Model):
+    user = models.ForeignKey(User, verbose_name='所属用户', on_delete=models.CASCADE)
+    folder = models.ForeignKey(FolderinProject, verbose_name='所属文件夹', on_delete=models.CASCADE,
                                null=True, blank=True)
-    project = models.ForeignKey(Project, related_name='files', verbose_name='所属项目', on_delete=models.CASCADE)
+    project = models.ForeignKey(Project, verbose_name='所属项目', on_delete=models.CASCADE)
     file = models.FileField(upload_to='uploads/projects/%Y%m%d/', verbose_name='文件', null=True, blank=True)
     create_date = models.DateTimeField(default=timezone.now, verbose_name='创建时间')
     file_name = models.CharField(max_length=50, verbose_name='文件名')
@@ -75,21 +73,6 @@ class File(models.Model):
 
     class Meta:
         verbose_name = '项目文件'
-        verbose_name_plural = verbose_name
-
-    def __str__(self):
-        return self.file_name
-
-
-class FileinUser(models.Model):
-    user = models.ForeignKey(User, verbose_name='所属用户', on_delete=models.CASCADE)
-    file = models.FileField(upload_to='uploads/users/%Y%m%d/', verbose_name='文件', null=True, blank=True)
-    create_date = models.DateTimeField(default=timezone.now, verbose_name='创建时间')
-    file_name = models.CharField(max_length=50, verbose_name='文件名')
-    file_size = models.PositiveIntegerField()  # 文件大小
-
-    class Meta:
-        verbose_name = '个人文件'
         verbose_name_plural = verbose_name
 
     def __str__(self):
