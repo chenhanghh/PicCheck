@@ -3,7 +3,6 @@ from django.db.models import Q
 from rest_framework.permissions import IsAuthenticated
 
 from common.models import Project, ProjectUser, Folder, File, User
-from django.http import JsonResponse
 import os
 
 from rest_framework import generics, status
@@ -12,9 +11,6 @@ from rest_framework.views import APIView
 from .serializers import ProjectSerializer, FileAddSerializer, FolderSerializer, FileDelSerializer, FileSerializer, \
     FolderRenameSerializer, FolderInfoSerializer, FileInfoSerializer, ProjectRenameSerializer
 from rest_framework.response import Response
-
-from projects.forms import FileFieldForm
-from django.views.generic.edit import FormView
 
 import logging
 
@@ -75,18 +71,20 @@ class UploadFileAPI(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]  # 控制访问权限
 
     def perform_create(self, serializer):
-        # 获取上传的文件对象
-        uploaded_file = self.request.FILES.get('file')
+        # 获取上传的文件对象列表
+        files = self.request.FILES.getlist('file')
 
-        # 设置文件名称和大小到 validated_data 中
-        serializer.validated_data['file_name'] = uploaded_file.name
-        serializer.validated_data['file_size'] = uploaded_file.size
+        # 处理多个文件
+        for file in files:
+            # 设置文件名称和大小到 validated_data 中
+            serializer.validated_data['file_name'] = file.name
+            serializer.validated_data['file_size'] = file.size
 
-        # 关联上传的文件与当前登录用户
-        serializer.validated_data['user'] = self.request.user
+            # 关联上传的文件与当前登录用户
+            serializer.validated_data['user'] = self.request.user
 
-        # 调用父类的 perform_create 方法保存文件
-        super().perform_create(serializer)
+            # 调用父类的 perform_create 方法保存文件
+            super().perform_create(serializer)
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
@@ -314,41 +312,3 @@ class SearchAPI(APIView):
         }
 
         return Response(data, status=status.HTTP_200_OK)
-
-
-# 批量上传文件
-class UploadFilesView(FormView):
-
-    form_class = FileFieldForm
-
-    def post(self, request, *args, **kwargs):
-        try:
-
-            # form = FileFieldForm(request.POST, request.FILES)
-
-            # 接收参数
-            user_id = request.POST.get('user_id')
-            folder_id = request.POST.get('folder_id')
-
-            form_class = self.get_form_class()
-            form = self.get_form(form_class)
-            # 判断表单数据是否合法
-            if form.is_valid():
-                # 获取多个文件上传的文件列表
-                files = request.FILES.getlist('file')
-                for f in files:
-                    title = f.name
-                    size = f.size
-                    new_file = File.objects.create(title=title,
-                                                   user_id=user_id,
-                                                   folder_id=folder_id,
-                                                   size=size,
-                                                   file=f)
-                return JsonResponse({'code': 200, 'msg': '文件上传成功！'})
-            else:
-                error_messages = form.errors
-                return JsonResponse({'code': 400, 'msg': '文件上传失败！', 'error': error_messages})
-
-        except Exception as e:
-            logger.error(e)
-            return JsonResponse({'code': 400, 'msg': '文件上传异常！'})

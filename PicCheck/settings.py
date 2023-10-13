@@ -71,10 +71,10 @@ JWT_AUTH = {
 
 # 设置JWT令牌的有效期，以秒为单位，默认为15分钟
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': datetime.timedelta(days=1),  # 修改为你需要的有效期
-    'SLIDING_TOKEN_REFRESH_LIFETIME': datetime.timedelta(days=1),  # 可选：滑动令牌的刷新有效期
-    'SLIDING_TOKEN_LIFETIME': datetime.timedelta(days=30),  # 可选：滑动令牌的有效期
-    'SLIDING_TOKEN_REFRESH_ON_LOGIN': True,  # 可选：用户登录时是否刷新滑动令牌
+    'ACCESS_TOKEN_LIFETIME': datetime.timedelta(days=1),
+    'SLIDING_TOKEN_REFRESH_LIFETIME': datetime.timedelta(days=1),  # 滑动令牌的刷新有效期
+    'SLIDING_TOKEN_LIFETIME': datetime.timedelta(days=30),  # 滑动令牌的有效期
+    'SLIDING_TOKEN_REFRESH_ON_LOGIN': True,  # 用户登录时是否刷新滑动令牌
 }
 
 MIDDLEWARE = [
