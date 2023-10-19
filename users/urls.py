@@ -23,8 +23,8 @@ urlpatterns = [
     path('api/reset-password/', ResetPasswordAPI.as_view()),
 
     # 登录
-    path('login/password/', LoginPwdAPI.as_view()),  # 手机号+密码登录
-    path('login/sms/', LoginSmsAPI.as_view()),  # 手机号+验证码登录
+    path('api/login/password/', LoginPwdAPI.as_view()),  # 手机号+密码登录
+    path('api/login/sms/', LoginSmsAPI.as_view()),  # 手机号+验证码登录
 
     # 获取用户信息
     path('api/user-info/', UserInfoAPI.as_view()),

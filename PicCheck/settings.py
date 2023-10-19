@@ -29,9 +29,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = "django-insecure-zh9__!nm0s$wjflpr&w-di6i!wq4sdze#s5=)37_*m$wka2$*9"
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['*', ]
 
 
 # Application definition
@@ -43,6 +43,9 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+
+    # 跨域资源共享
+    'corsheaders',
 
     # jwt
     'rest_framework',
@@ -79,6 +82,7 @@ SIMPLE_JWT = {
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    'corsheaders.middleware.CorsMiddleware',
     "django.middleware.common.CommonMiddleware",
     # "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -237,3 +241,6 @@ LOGGING = {
 
 # 定义裂缝识别算法路径
 ALGORITHM_URL = "https://wx.conre.com.cn/dev/yolov5-crack/predict"
+
+CORS_ORIGIN_ALLOW_ALL = True  # 允许任何主机
+CORS_ALLOW_CREDENTIALS = True  # 允许包含身份验证凭证的请求

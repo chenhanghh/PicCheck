@@ -15,6 +15,7 @@ class User(AbstractUser):
     position = models.CharField(max_length=128, verbose_name='职位', )
     gender = models.CharField(max_length=32, verbose_name='性别', choices=gender_, default='男')
     scope = models.CharField(max_length=256, verbose_name='地区', )
+    avatar = models.ImageField(upload_to='uploads/avatar/%Y%m%d/', null=True, blank=True)
 
     # 创建超级管理员必须输入的字段
     REQUIRED_FIELDS = ['phonenumber']

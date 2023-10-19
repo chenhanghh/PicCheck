@@ -138,8 +138,8 @@ class CrackDetectionDispose(IImageDispose):
                 text_arg = TextArgument(
                     text=label,
                     color=tuple(color),
-                    place=(c_1[0], c_1[1] - 32),
-                    size=32
+                    place=((c_2[0]-c_1[0])/2 + c_1[0], (c_2[1] - c_1[1])/2 + c_1[1]),
+                    size=24
                 )
 
                 img_np = put_text_to_ndarray(img_np, text_arg)
