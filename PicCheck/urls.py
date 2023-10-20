@@ -31,4 +31,6 @@ urlpatterns = [
 
     path('recognition/', include('recognition.urls')),
 
+    # path('chat/', include('chat.urls')),
+
 ]

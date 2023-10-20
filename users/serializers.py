@@ -72,7 +72,7 @@ class LoginSmsSerializer(serializers.Serializer):
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'nickname', 'phonenumber', 'gender', 'position', 'scope')
+        fields = ('id', 'username', 'nickname', 'phonenumber', 'gender', 'position', 'scope', 'avatar')
 
 
 # 编辑用户信息

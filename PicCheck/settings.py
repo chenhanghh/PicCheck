@@ -56,6 +56,8 @@ INSTALLED_APPS = [
     "projects.apps.ProjectsConfig",
     "recognition.apps.RecognitionConfig",
 
+    "chat.apps.ChatConfig",
+
 ]
 
 REST_FRAMEWORK = {

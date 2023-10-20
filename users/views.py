@@ -55,14 +55,16 @@ class SmsCodeView(View):
                 return JsonResponse({'code': 400, "msg": "短信验证码发送异常！"})
 
 
-# 手机号+验证码注册
 class UserRegistrationAPI(APIView):
+    """
+    手机号+验证码注册
+    """
     def post(self, request):
         serializer = UserRegisterSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save()
-            return Response({'message': 'New users registered.'}, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'status': 201, 'message': 'New users registered.'}, status=status.HTTP_201_CREATED)
+        return Response({'status': 400, 'error': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class VerifySmsCodeAPI(APIView):
@@ -72,8 +74,8 @@ class VerifySmsCodeAPI(APIView):
     def post(self, request):
         serializer = VerifySmsCodeSerializer(data=request.data)
         if serializer.is_valid():
-            return Response({'message': 'Captcha is successfully verified.'}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'status': 200, 'message': 'Captcha is successfully verified.'}, status=status.HTTP_200_OK)
+        return Response({'status': 400, 'error': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class ResetPasswordAPI(APIView):
@@ -89,8 +91,8 @@ class ResetPasswordAPI(APIView):
             new_password = serializer.validated_data.get('new_password')
             user.set_password(new_password)
             user.save()
-            return Response({'message': 'Password changed successfully.'}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'status': 200, 'message': 'Password changed successfully.'}, status=status.HTTP_200_OK)
+        return Response({'status': 400, 'error': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LoginPwdAPI(APIView):
@@ -106,17 +108,17 @@ class LoginPwdAPI(APIView):
             try:
                 user = User.objects.get(phonenumber=phonenumber)
                 if user.is_active == 0:
-                    return Response({'error': 'This user is not active.'}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response({'status': 400, 'error': 'This user is not active.'}, status=status.HTTP_400_BAD_REQUEST)
                 if not check_password(password, user.password):
-                    return Response({'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+                    return Response({'status': 401, 'error': 'Invalid credentials'}, status=status.HTTP_401_UNAUTHORIZED)
 
                 refresh = RefreshToken.for_user(user)
                 access_token = str(refresh.access_token)
-                return Response({'access_token': access_token}, status=status.HTTP_200_OK)
+                return Response({'status': 200, 'access_token': access_token, 'user_id': user.id}, status=status.HTTP_200_OK)
             except User.DoesNotExist:
-                return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+                return Response({'status': 404, 'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
         else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'status': 400, 'error': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LoginSmsAPI(APIView):
@@ -137,14 +139,14 @@ class LoginSmsAPI(APIView):
                 try:
                     user = User.objects.get(phonenumber=phonenumber)
                 except User.DoesNotExist:
-                    return Response({'detail': '用户不存在'}, status=status.HTTP_404_NOT_FOUND)
+                    return Response({'status': 404, 'detail': '用户不存在'}, status=status.HTTP_404_NOT_FOUND)
 
                 refresh = RefreshToken.for_user(user)
                 access_token = str(refresh.access_token)
-                return Response({'access_token': access_token}, status=status.HTTP_200_OK)
+                return Response({'status': 200, 'access_token': access_token, 'user_id': user.id}, status=status.HTTP_200_OK)
             else:
-                return Response({'detail': '验证码错误'}, status=status.HTTP_400_BAD_REQUEST)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'status': 400, 'error': '验证码错误'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'status': 400, 'error': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UserInfoAPI(APIView):
@@ -156,7 +158,7 @@ class UserInfoAPI(APIView):
     def get(self, request):
         user = request.user
         serializer = UserSerializer(user)
-        return Response(serializer.data)
+        return Response({'status': 200, 'data': serializer.data})
 
 
 class EditUserInfoAPI(APIView):
@@ -172,5 +174,5 @@ class EditUserInfoAPI(APIView):
 
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'status': 200, 'data': serializer.data}, status=status.HTTP_200_OK)
+        return Response({'status': 400, 'error': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
