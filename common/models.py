@@ -5,16 +5,15 @@ from django.utils import timezone
 
 
 class User(AbstractUser):
-    gender_ = (
-        ('male', '男'),
-        ('female', '女'),
+    GENDER_CHOICES = (
+        ('男', 'male'),
+        ('女', 'female'),
     )
 
     nickname = models.CharField(max_length=128, verbose_name='昵称')
     phonenumber = models.CharField(max_length=32, verbose_name='电话号码', unique=True)
-    position = models.CharField(max_length=128, verbose_name='职位', )
-    gender = models.CharField(max_length=32, verbose_name='性别', choices=gender_, default='男')
-    scope = models.CharField(max_length=256, verbose_name='地区', )
+    position = models.CharField(max_length=128, verbose_name='职位')
+    gender = models.CharField(max_length=32, verbose_name='性别', choices=GENDER_CHOICES, default='女')
     avatar = models.ImageField(upload_to='uploads/avatar/%Y%m%d/', null=True, blank=True)
 
     # 创建超级管理员必须输入的字段

@@ -5,6 +5,7 @@ from users.views import SmsCodeView
 
 from users.views import ResetPasswordAPI, LoginPwdAPI, LoginSmsAPI, UserInfoAPI, EditUserInfoAPI, UserRegistrationAPI, \
     VerifySmsCodeAPI
+from django.contrib.auth import views as auth_views
 
 # 路由 就是指：根据HTTP请求的url路径，设置由哪个函数来处理这个请求。
 # urlpatterns 列表：Django 的 url 路由的入口
@@ -31,6 +32,9 @@ urlpatterns = [
 
     # 编辑用户信息
     path('api/edit-userinfo/', EditUserInfoAPI.as_view()),
+
+    # 登出
+    path('api/logout/', auth_views.LogoutView.as_view()),
 
 ]
 

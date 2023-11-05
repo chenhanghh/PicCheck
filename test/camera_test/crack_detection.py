@@ -1,12 +1,11 @@
 import requests
 
-# 您的API端点URL
-api_url = 'http://localhost/recognition/api/crack_detection/'  # 请替换成您的API端点URL
+api_url = 'http://192.168.106.89:8000//recognition/api/crack_detection/'
 
 # 要发送的数据
 data = {
-    'file_id': 3,  # 替换为您要检测的文件的FileinUser ID
-    'user_id': 32    # 替换为用户的ID
+    'file_id': 3,
+    'user_id': 32
 }
 
 # 发送POST请求

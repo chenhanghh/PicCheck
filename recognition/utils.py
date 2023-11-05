@@ -9,8 +9,10 @@ from typing import Tuple, Optional, Dict, Any, BinaryIO
 import cv2
 import numpy as np
 from django.conf import settings
-from django.http.response import HttpResponse
+from django.http.response import HttpResponse, JsonResponse
 from PIL import Image, ImageFont, ImageDraw, ImageOps
+
+import base64
 
 
 @dataclass
@@ -99,13 +101,13 @@ def convert_opened_file_to_image(binary_io: BinaryIO):
     return img
 
 
-def make_image_response(image: Image) -> HttpResponse:
+def make_image_response(image: Image):
     result_content: BytesIO = BytesIO()
     image.save(result_content, "png")
-    result_content.seek(0)
-    response = HttpResponse(result_content.read(),
-                            content_type="image/png")
-    return response
+    result_content = result_content.getvalue()
+    base64_img = base64.b64encode(result_content).decode('utf-8')
+    data = {'image': base64_img}
+    return JsonResponse(data)
 
 
 class CrackDetectionDispose(IImageDispose):
@@ -147,4 +149,4 @@ class CrackDetectionDispose(IImageDispose):
             cv2.rectangle(img_np, c_1, c_2, color, thickness=t_l,
                           lineType=cv2.LINE_AA)
 
-        return Image.fromarray(img_np)
+        return Image.fromarray(img_np)  # 实现 array 到 image 的转换

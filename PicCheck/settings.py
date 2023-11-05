@@ -37,6 +37,8 @@ ALLOWED_HOSTS = ['*', ]
 # Application definition
 
 INSTALLED_APPS = [
+    "daphne",
+
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -56,9 +58,19 @@ INSTALLED_APPS = [
     "projects.apps.ProjectsConfig",
     "recognition.apps.RecognitionConfig",
 
-    "chat.apps.ChatConfig",
+    "channels",
+
+    "group_chat.apps.GroupChatConfig",
 
 ]
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    },
+}
+
+ASGI_APPLICATION = "PicCheck.asgi.application"
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
@@ -86,7 +98,7 @@ MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",
     'corsheaders.middleware.CorsMiddleware',
     "django.middleware.common.CommonMiddleware",
-    # "django.middleware.csrf.CsrfViewMiddleware",
+    "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
@@ -97,7 +109,7 @@ ROOT_URLCONF = "PicCheck.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [os.path.join(BASE_DIR, 'templates')],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -189,7 +201,7 @@ AUTH_USER_MODEL = "common.User"
 # 上传文件目录
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media/')
 # 设置文件访问的统一路由
-MEDIA_URL = '/upload/'
+MEDIA_URL = '/media/'
 
 # 配置日志
 LOGGING_DIR = os.path.join(BASE_DIR, 'logs')  # 创建一个存储日志文件的目录

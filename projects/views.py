@@ -44,7 +44,7 @@ class AddProjectAPI(generics.CreateAPIView):
                 except User.DoesNotExist:
                     pass
 
-            return Response(project_serializer.data, status=201)
+            return Response({'status': 201, 'data': project_serializer.data, 'user_data': user_data}, status=201)
         return Response(project_serializer.errors, status=400)
 
 

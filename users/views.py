@@ -1,8 +1,5 @@
 import random
-import string
 
-from django.contrib.auth import authenticate
-from django.db import DatabaseError
 from django.http import JsonResponse
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -12,6 +9,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from common.models import User
 import re
 from django.contrib.auth.hashers import check_password
+from django.db.utils import IntegrityError
 
 from .serializers import ResetPasswordSerializer, LoginSmsSerializer, UserSerializer, UserEditSerializer, \
     LoginPwdSerializer, UserRegisterSerializer, VerifySmsCodeSerializer
@@ -60,11 +58,18 @@ class UserRegistrationAPI(APIView):
     手机号+验证码注册
     """
     def post(self, request):
-        serializer = UserRegisterSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'status': 201, 'message': 'New users registered.'}, status=status.HTTP_201_CREATED)
-        return Response({'status': 400, 'error': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            serializer = UserRegisterSerializer(data=request.data)
+            if serializer.is_valid():
+                serializer.save()
+                phonenumber = serializer.validated_data["phonenumber"]
+                user = User.objects.get(phonenumber=phonenumber)
+                refresh = RefreshToken.for_user(user)
+                access_token = str(refresh.access_token)
+                return Response({'status': 201, 'message': 'New users registered.', 'access_token': access_token, 'user_id': user.id, 'username': user.username}, status=status.HTTP_201_CREATED)
+            return Response({'status': 400, 'error': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+        except IntegrityError as e:
+            return Response({'status': 500, 'error': 'The phonenumber is registered.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class VerifySmsCodeAPI(APIView):
@@ -133,19 +138,19 @@ class LoginSmsAPI(APIView):
 
             # 从Redis中获取验证码
             # cached_code = redis_conn.get("sms_%s" % phone_number)
-            cached_code = 1782
+            cached_code = 178266
 
             if int(cached_code) and int(cached_code) == int(captcha):
                 try:
                     user = User.objects.get(phonenumber=phonenumber)
                 except User.DoesNotExist:
-                    return Response({'status': 404, 'detail': '用户不存在'}, status=status.HTTP_404_NOT_FOUND)
+                    return Response({'status': 404, 'detail': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
 
                 refresh = RefreshToken.for_user(user)
                 access_token = str(refresh.access_token)
                 return Response({'status': 200, 'access_token': access_token, 'user_id': user.id}, status=status.HTTP_200_OK)
             else:
-                return Response({'status': 400, 'error': '验证码错误'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({'status': 400, 'error': 'Captcha error.'}, status=status.HTTP_400_BAD_REQUEST)
         return Response({'status': 400, 'error': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -173,6 +178,11 @@ class EditUserInfoAPI(APIView):
         serializer = UserEditSerializer(user_profile, data=request.data, partial=True)  # 允许部分更新
 
         if serializer.is_valid():
+            # 处理头像上传
+            user_avatar = request.FILES.get('avatar')
+            if user_avatar:
+                serializer.validated_data['avatar'] = user_avatar
+
             serializer.save()
             return Response({'status': 200, 'data': serializer.data}, status=status.HTTP_200_OK)
         return Response({'status': 400, 'error': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)

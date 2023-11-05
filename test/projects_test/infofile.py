@@ -1,18 +1,19 @@
 import requests
 
-# 您的API端点URL
-url = 'http://localhost/projects/api/file/68/'  # 替换成您要获取文件信息的文件ID
+url = 'http://192.168.106.89:8000/projects/api/file/1/'
 
-# 请求头，如果需要身份验证，请添加适当的标头
+jwt_token = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjk3NzA0MjA5LCJpYXQiOjE2OTc2MTc4MDksImp0aSI6IjIyODM2ZmUyM2E2MDQ3M2Q4Y2E4ODAxZjE2ODUwNWVjIiwidXNlcl9pZCI6MzJ9.3uDAngwdKtNfawo4fRqplpi0RINg7T4fxrnc2bGuBPo'
+
+# 请求头
 headers = {
-    'Authorization': "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjozMiwidXNlcm5hbWUiOiJVbHltYURIeSIsImV4cCI6MTY5NjA1MzA2OCwiZW1haWwiOiIiLCJvcmlnX2lhdCI6MTY5NTQ0ODI2OH0.to3ZIAzaUVJTgDSvCJP28tPr1Foy96w6pBDYBk1zLz0",  # 替换为您的身份验证令牌（如果有）
+    'Authorization': f'Bearer {jwt_token}',  # Bearer 访问令牌
 }
 
 # 发送GET请求
 response = requests.get(url, headers=headers)
 
 # 检查响应的状态码
-if response.status_code == 200:  # 200表示成功
+if response.status_code == 200:
     try:
         # 尝试解析JSON响应
         json_data = response.json()

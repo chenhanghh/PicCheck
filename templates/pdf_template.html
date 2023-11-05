@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        /* CSS 样式 控制布局和样式 */
+        .container {
+            display: flex;
+            flex-direction: column; /* 垂直布局 */
+        }
+
+        .top {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .top-left {
+            width: 50%; /* 左半部分宽度为50% */
+        }
+
+        .top-right {
+            width: 50%; /* 右半部分宽度为50% */
+            font-family: 'NotoSansSC-VariableFont_wght', sans-serif; /* 将字体设置为宋体 */
+        }
+
+        .bottom {
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="top">
+            <div class="top-left">
+                <img src="data:image/jpeg;base64,{{ image_data }}" alt="Image">
+            </div>
+            <div class="top-right">
+                {% for key, value in box_s_list %}
+                    <p>{{ key|safe }}: {{ value }}</p>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="bottom">
+            {{ frontend_html_content|safe }}
+        </div>
+    </div>
+</body>
+</html>
