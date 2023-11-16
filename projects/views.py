@@ -9,7 +9,8 @@ from rest_framework import generics, status
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 from .serializers import ProjectSerializer, FileAddSerializer, FolderSerializer, FileDelSerializer, FileSerializer, \
-    FolderRenameSerializer, FolderInfoSerializer, FileInfoSerializer, ProjectRenameSerializer
+    FolderRenameSerializer, FolderInfoSerializer, FileInfoSerializer, ProjectRenameSerializer, ProjectUserSerializer, \
+    ProjectDetailSerializer
 from rest_framework.response import Response
 
 import logging
@@ -22,30 +23,252 @@ class AddProjectAPI(generics.CreateAPIView):
     创建项目
     """
     permission_classes = [IsAuthenticated]
-
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
 
     def create(self, request, *args, **kwargs):
         # 解析请求数据
         project_data = request.data
-        user_data = project_data.pop('users', [])
 
-        # 创建项目
+        # 生成并保存邀请码
         project_serializer = self.get_serializer(data=project_data)
         if project_serializer.is_valid():
             project = project_serializer.save()
+            project.invitation_code = project.generate_invitation_code()
+            project.save()
 
-            # 将用户添加到项目中
-            for user_id in user_data:
-                try:
-                    user = User.objects.get(id=user_id)
-                    project.users.add(user)
-                except User.DoesNotExist:
-                    pass
+            # 将当前登录用户添加到项目中，并设置为项目负责人
+            project_user = ProjectUser(project=project, user=request.user, user_level='owner')
+            project_user.save()
 
-            return Response({'status': 201, 'data': project_serializer.data, 'user_data': user_data}, status=201)
-        return Response(project_serializer.errors, status=400)
+            return Response({'status': 201, 'data': project_serializer.data}, status=status.HTTP_201_CREATED)
+        return Response({'status': 400, 'error': project_serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class JoinProjectAPI(generics.CreateAPIView):
+    """
+    通过邀请码加入项目
+    """
+    permission_classes = [IsAuthenticated]
+    queryset = Project.objects.all()
+    serializer_class = ProjectSerializer
+
+    def create(self, request, *args, **kwargs):
+        # 解析请求数据
+        join_data = request.data
+
+        # 获取邀请码
+        invitation_code = join_data.get('invitation_code', None)
+
+        if invitation_code:
+            # 查找项目
+            try:
+                project = Project.objects.get(invitation_code=invitation_code)
+            except Project.DoesNotExist:
+                return Response({'status': 404, 'error': 'Project does not exist.'}, status=status.HTTP_404_NOT_FOUND)
+
+            # 检查用户是否已经加入项目
+            if ProjectUser.objects.filter(project=project, user=request.user).exists():
+                return Response({'status': 400, 'error': 'User has already joined the project.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # 将当前登录用户添加到项目中
+            project_user = ProjectUser(project=project, user=request.user, user_level='member')
+            project_user.save()
+
+            return Response({'status': 200, 'message': 'Successfully join the project.', 'project_id': project.id}, status=status.HTTP_200_OK)
+        else:
+            return Response({'status': 400, 'error': 'Missing invitation code.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class ProjectDetailAPI(generics.RetrieveAPIView):
+    """
+    获取项目所包含的用户信息
+    """
+    permission_classes = [IsAuthenticated]
+    queryset = Project.objects.all()
+    serializer_class = ProjectDetailSerializer
+
+    def retrieve(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+
+            # 使用 ProjectSerializer 序列化项目信息
+            project_serializer = self.get_serializer(instance)
+            project_data = project_serializer.data
+
+            # 获取项目中包含的用户信息
+            project_users = ProjectUser.objects.filter(project=instance)
+            # 使用 ProjectUserSerializer 序列化用户信息
+            user_serializer = ProjectUserSerializer(project_users, many=True)
+            project_data['users'] = user_serializer.data
+            return Response({'status': 200, 'message': project_data}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({'status': 500, "error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class PromoteMemberToAdminView(generics.UpdateAPIView):
+    """
+    项目负责人提升普通用户为管理员
+    """
+    permission_classes = [IsAuthenticated]
+    queryset = ProjectUser.objects.all()
+    serializer_class = ProjectUserSerializer
+
+    def update(self, request, *args, **kwargs):
+        # 获取当前登录用户
+        current_user = request.user
+        # 获取项目和用户
+        project_id = kwargs.get('project_id')
+        user_id = kwargs.get('user_id')
+
+        try:
+            project_user = ProjectUser.objects.get(project__id=project_id, user__id=current_user.id)
+        except ProjectUser.DoesNotExist:
+            return Response({'status': 404, "error": "Project user not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # 验证当前用户是否为项目 owner
+        if project_user.user_level == 'owner':
+            try:
+                user_to_promote = ProjectUser.objects.get(project__id=project_id, user__id=user_id, user_level='member')
+            except ProjectUser.DoesNotExist:
+                return Response({'status': 404, "error": "User not found or not a member"},
+                                status=status.HTTP_404_NOT_FOUND)
+
+            # 将 member 提升为 admin
+            user_to_promote.user_level = 'admin'
+            user_to_promote.save()
+
+            serializer = self.get_serializer(user_to_promote)
+            return Response({'status': 200, 'message': serializer.data}, status=status.HTTP_200_OK)
+
+        return Response({'status': 403, "error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
+
+
+class DemoteAdminToMemberView(generics.UpdateAPIView):
+    """
+    项目负责人降级管理员为普通用户
+    """
+    permission_classes = [IsAuthenticated]
+    queryset = ProjectUser.objects.all()
+    serializer_class = ProjectUserSerializer
+
+    def update(self, request, *args, **kwargs):
+        # 获取当前登录用户
+        current_user = request.user
+
+        # 获取项目和用户
+        project_id = kwargs.get('project_id')
+        user_id = kwargs.get('user_id')
+
+        try:
+            project_user = ProjectUser.objects.get(project__id=project_id, user__id=current_user.id)
+        except ProjectUser.DoesNotExist:
+            return Response({'status': 404, "error": "Project user not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # 验证当前用户是否为项目 owner
+        if project_user.user_level == 'owner':
+            try:
+                admin_to_demote = ProjectUser.objects.get(project__id=project_id, user__id=user_id, user_level='admin')
+            except ProjectUser.DoesNotExist:
+                return Response({'status': 404, "error": "User not found or not an admin"}, status=status.HTTP_404_NOT_FOUND)
+
+            # 将 admin 降级为 member
+            admin_to_demote.user_level = 'member'
+            admin_to_demote.save()
+
+            serializer = self.get_serializer(admin_to_demote)
+            return Response({'status': 200, 'message': serializer.data}, status=status.HTTP_200_OK)
+
+        return Response({'status': 403, "error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
+
+
+class TransferOwnershipView(generics.UpdateAPIView):
+    """
+    项目负责人将项目负责人角色转让给项目所包含的其中一个用户
+    """
+    permission_classes = [IsAuthenticated]
+    queryset = ProjectUser.objects.all()
+    serializer_class = ProjectUserSerializer
+
+    def update(self, request, *args, **kwargs):
+        # 获取当前登录用户
+        current_user = request.user
+
+        # 获取项目和用户
+        project_id = kwargs.get('project_id')
+        user_id_to_transfer = kwargs.get('user_id_to_transfer')
+
+        try:
+            project_user = ProjectUser.objects.get(project__id=project_id, user__id=current_user.id)
+        except ProjectUser.DoesNotExist:
+            return Response({'status': 404, "error": "Project user not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # 验证当前用户是否为项目 owner
+        if project_user.user_level == 'owner':
+            try:
+                user_to_transfer = ProjectUser.objects.get(project__id=project_id, user__id=user_id_to_transfer)
+            except ProjectUser.DoesNotExist:
+                return Response({'status': 404, "error": "User not found or not a member of the project"}, status=status.HTTP_404_NOT_FOUND)
+
+            # 将当前 owner 的角色转让给另一个用户
+            project_user.user_level = 'member'
+            project_user.save()
+
+            user_to_transfer.user_level = 'owner'
+            user_to_transfer.save()
+
+            serializer_current_owner = self.get_serializer(project_user)
+            serializer_new_owner = self.get_serializer(user_to_transfer)
+
+            return Response({
+                'status': 200,
+                'message': f"Ownership transferred from {current_user.username} to {user_to_transfer.user.username}",
+                'current_owner': serializer_current_owner.data,
+                'new_owner': serializer_new_owner.data
+            }, status=status.HTTP_200_OK)
+
+        return Response({'status': 403, "error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
+
+
+class RemoveUserFromProjectView(generics.DestroyAPIView):
+    """
+    项目管理员或负责人从项目中删除普通用户
+    """
+    permission_classes = [IsAuthenticated]
+    queryset = ProjectUser.objects.all()
+    serializer_class = ProjectUserSerializer
+
+    def destroy(self, request, *args, **kwargs):
+        # 获取当前登录用户
+        current_user = request.user
+
+        # 获取项目和用户
+        project_id = kwargs.get('project_id')
+        user_id_to_remove = kwargs.get('user_id_to_remove')
+
+        try:
+            project_user = ProjectUser.objects.get(project__id=project_id, user__id=current_user.id)
+        except ProjectUser.DoesNotExist:
+            return Response({'status': 404, "error": "Project user not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # 验证当前用户是否为项目 owner 或 admin
+        if project_user.user_level in ['owner', 'admin']:
+            try:
+                user_to_remove = ProjectUser.objects.get(project__id=project_id, user__id=user_id_to_remove,
+                                                         user_level='member')
+            except ProjectUser.DoesNotExist:
+                return Response({'status': 404, "error": "User not found or not a member of the project"},
+                                status=status.HTTP_404_NOT_FOUND)
+
+            # 从项目中删除普通用户
+            user_to_remove.delete()
+
+            return Response(
+                {'status': 200, 'message': f"User {user_to_remove.user.username} removed from the project"},
+                status=status.HTTP_200_OK)
+
+        return Response({'status': 403, "error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN)
 
 
 class AddFolderAPI(generics.CreateAPIView):

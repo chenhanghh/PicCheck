@@ -11,6 +11,11 @@ import re
 from django.contrib.auth.hashers import check_password
 from django.db.utils import IntegrityError
 
+from aliyunsdkcore.client import AcsClient
+from aliyunsdkcore.request import CommonRequest
+from django.conf import settings
+import json
+
 from .serializers import ResetPasswordSerializer, LoginSmsSerializer, UserSerializer, UserEditSerializer, \
     LoginPwdSerializer, UserRegisterSerializer, VerifySmsCodeSerializer
 
@@ -30,27 +35,55 @@ redis_conn = get_redis_connection("default")
 
 # 发送验证码
 class SmsCodeView(View):
-    def post(self, request):
-        phonenumber = request.POST.get('phonenumber')
+    def get(self, request):
+        phonenumber = request.GET.get('phonenumber')
+
+        # if not phonenumber:
+        #     return Response({'status': 400, 'message': '缺少手机号码'}, status=status.HTTP_400_BAD_REQUEST)
+
         if not re.match(r"^1[3-9]\d{9}$", phonenumber):
-            return JsonResponse({'code': 400, 'msg': '手机号码格式不正确'})
-        else:
-            # 生成短信验证码，随机n位数字, 以下列表生成式可以随机生成4位0-9的数字字符串
-            sms_code = '%04d' % random.randint(0, 9999)
-            # 保存短信验证码
-            redis_conn.setex('sms_%s' % phonenumber, 3000, sms_code)
-            # 发送手机验证码
-            ccp = CCP()
-            try:
-                # ccp.send_template_sms(手机号,[验证码，过期时间],内容模板)
-                res = ccp.send_template_sms(phonenumber, [sms_code, 5], "1")
-                if res == 0:
-                    return JsonResponse({'code': 200, "msg": "短信验证码发送成功！"})
-                else:
-                    return JsonResponse({'code': 400, "msg": "短信验证码发送失败！"})
-            except Exception as e:
-                logger.error(e)
-                return JsonResponse({'code': 400, "msg": "短信验证码发送异常！"})
+            return Response({'status': 400, 'message': '手机号码格式不正确'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 生成随机的6位验证码
+        verification_code = ''.join(random.choices('0123456789', k=6))
+
+        # request.session['verification_code'] = verification_code
+
+        # 保存短信验证码
+        redis_conn.setex('sms_%s' % phonenumber, 3000, verification_code)
+
+        # 阿里云短信服务配置
+        client = AcsClient(
+            settings.ALIYUN_ACCESS_KEY_ID,
+            settings.ALIYUN_ACCESS_KEY_SECRET,
+            'default'
+        )
+
+        request = CommonRequest()
+        request.set_accept_format('json')
+        request.set_domain('dysmsapi.aliyuncs.com')
+        request.set_method('POST')
+        request.set_protocol_type('https')
+        request.set_version('2017-05-25')
+        request.set_action_name('SendSms')
+
+        # 配置短信模板和签名
+        request.add_query_param('SignName', settings.ALIYUN_SMS_SIGN_NAME)
+        request.add_query_param('TemplateCode', settings.ALIYUN_SMS_TEMPLATE_CODE)
+        # 设置短信验证码和手机号
+        request.add_query_param('TemplateParam', json.dumps({'code': verification_code}))
+        request.add_query_param('PhoneNumbers', phonenumber)
+
+        # # 发送短信
+        # response = client.do_action_with_exception(request)
+
+        try:
+            # 发送短信
+            response = client.do_action_with_exception(request)
+            return Response({'status': 200, 'message': '验证码发送成功'})
+        except Exception as e:
+            return Response({'status': 500, 'message': f'验证码发送失败: {str(e)}'},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class UserRegistrationAPI(APIView):

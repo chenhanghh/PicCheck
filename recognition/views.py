@@ -1,6 +1,4 @@
 import json
-
-from django.http import HttpResponse
 from django_redis import get_redis_connection
 from rest_framework import status, generics
 from rest_framework.permissions import IsAuthenticated
@@ -10,7 +8,7 @@ from rest_framework import serializers
 
 from PicCheck import settings
 from recognition.models import CrackDetection, FileinUser
-from recognition.serializers import SaveDetectionSerializer, SaveGallerySerializer, GeneratePDFSerializer
+from recognition.serializers import SaveGallerySerializer
 from recognition import utils as dis_utils
 import base64
 from io import BytesIO
@@ -21,13 +19,9 @@ import time
 
 from django.shortcuts import render
 
-from recognition.tasks import crack_detection
-
 from xhtml2pdf import pisa
 
 from django.core.files.base import ContentFile
-
-from fpdf import FPDF
 
 import logging
 
@@ -41,7 +35,6 @@ class CrackDetectionShow(APIView):
     """
     裂缝检测图片显示
     """
-
     def post(self, *args, **kwargs):
         image = self.request.FILES.get('image')
         with image.open() as storage_f:
@@ -76,7 +69,6 @@ class GetBoxSAPIView(APIView):
     """
     裂缝检测结果说明
     """
-
     def get(self, request):
         # 从请求中获取image名字
         image_name = request.GET.get('image_name')
@@ -101,50 +93,6 @@ class GetBoxSAPIView(APIView):
             return Response({'status': 404, 'error': 'Data not found in cache.'}, status=status.HTTP_404_NOT_FOUND)
 
 
-class SaveDetectionAPI(generics.CreateAPIView):
-    """
-    保存原始图像、检测说明
-    """
-    permission_classes = [IsAuthenticated]  # 控制访问权限
-    queryset = CrackDetection.objects.all()
-    serializer_class = SaveDetectionSerializer
-
-    def perform_create(self, serializer):
-        # 获取上传的文件对象
-        image = self.request.FILES.get('image')
-
-        # 设置文件名称和大小到 validated_data 中
-        serializer.validated_data['image_name'] = image.name
-        serializer.validated_data['image_size'] = image.size
-
-        # 从 Redis 缓存中获取 box_s 和 img_new 数据
-        cache_key = 'image_cache:%s' % image.name
-        cached_data = redis_conn.get(cache_key)
-        data = json.loads(cached_data)
-
-        if data is None:
-            raise serializers.ValidationError({'error': 'Data not found in cache.'})
-
-        box_s = data['box_s']
-
-        # 设置box_s到 validated_date 中
-        serializer.validated_data['box_s'] = box_s
-
-        # 关联上传的文件与当前登录用户
-        serializer.validated_data['user'] = self.request.user
-
-        # 调用父类的 perform_create 方法保存文件
-        super().perform_create(serializer)
-
-    def create(self, request, *args, **kwargs):
-        response = super().create(request, *args, **kwargs)
-        if response.status_code == status.HTTP_201_CREATED:
-            response_data = response.data
-            return Response({'status': 201, 'message': 'Detection saved successfully', 'data': response_data},
-                            status=status.HTTP_201_CREATED)
-        return response
-
-
 class SaveGalleryAPI(generics.CreateAPIView):
     """
     保存识别图像到图库中
@@ -155,7 +103,7 @@ class SaveGalleryAPI(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         # 从请求中获取image_name
-        image_name = self.request.POST.get('image_name')
+        image_name = self.request.data.get('image_name')
         print(image_name)
 
         # 从 Redis 缓存中获取 box_s 和 img_new 数据
@@ -201,13 +149,13 @@ class SaveGalleryAPI(generics.CreateAPIView):
         # 调用父类的 perform_create 方法保存文件
         super().perform_create(serializer)
 
-    def create(self, request, *args, **kwargs):
-        response = super().create(request, *args, **kwargs)
-        if response.status_code == status.HTTP_201_CREATED:
-            response_data = response.data
-            return Response({'status': 201, 'message': 'Detection saved successfully', 'data': response_data},
-                            status=status.HTTP_201_CREATED)
-        return response
+        response_data = {
+            'img_new_name': serializer.validated_data['img_new_name'],
+            'img_new': serializer.validated_data['img_new'],
+            'img_new_size': serializer.validated_data['img_new_size'],
+        }
+
+        return Response({'status': 201, 'data': response_data}, status=status.HTTP_201_CREATED)
 
 
 def font_patch():
@@ -224,19 +172,20 @@ class GeneratePDFAPI(APIView):
     """
     上传pdf文件到个人文件中
     """
-
     def post(self, request, *args, **kwargs):
         # 获取HTML富文本内容
-        html_content = self.request.POST.get('html_content')
+        html_content = self.request.data.get('html_content')
         print(html_content)
         # 从请求中获取image_name
-        image_name = self.request.POST.get('image_name')
+        image_name = self.request.data.get('image_name')
+        print(image_name)
 
         # 从 Redis 缓存中获取 box_s 和 img_new 数据
         # 生成缓存键，使用image的唯一标识作为键
         cache_key = 'image_cache:%s' % image_name
         cached_data = redis_conn.get(cache_key)
         data = json.loads(cached_data)
+        date_str = datetime.datetime.now().strftime("%Y年%m月%d日%H时%M分")
 
         if data is None:
             raise serializers.ValidationError({'error': 'Data not found in cache.'})
@@ -253,18 +202,22 @@ class GeneratePDFAPI(APIView):
 
         image_data = base64.b64encode(img_new_data).decode()
 
-        box_s = data['box_s']
-        # 将字典 box_s 转化为列表
-        box_s_list = list(box_s.items())
-        box_s_list = [(key.encode('utf-8'), value) for key, value in box_s_list]
-        print(box_s_list, type)
+        result_data = data['box_s']['result']
+        result_name = data['box_s']['names']
+        result = {}
+        for n in range(len(result_data)):
+            result[n + 1] = result_name[str(result_data[n][5])]
+        result_list = list(result.items())
+        print(result_list, type)
 
         # 渲染HTML模板
-        # html_template = 'templates/pdf_template.html'
+        image_no_extension, extension = os.path.splitext(image_name)
         html_template = os.path.join(settings.BASE_DIR, 'templates', 'pdf_template.html')
         context = {
+            'image_name': image_no_extension,
+            'date_time': date_str,
             'image_data': image_data,
-            'box_s_list': box_s_list,
+            'result_list': result_list,
             'frontend_html_content': html_content,
         }
         rendered_html = render(request, html_template, context)
@@ -272,17 +225,17 @@ class GeneratePDFAPI(APIView):
         # 创建PDF文档
         pdf_buffer = BytesIO()
         # 生成PDF
-        font_patch()
+        # font_patch()
         pdf = pisa.CreatePDF(BytesIO(rendered_html.content), pdf_buffer)
 
         # 保存 PDF 到数据库
         if not pdf.err:
             pdf_buffer.seek(0)
             pdf_file = FileinUser(
-                file_name="generated_pdf.pdf",
-                file=ContentFile(pdf_buffer.read(), name="generated_pdf.pdf")
+                file_name=image_no_extension+".pdf",
+                file=ContentFile(pdf_buffer.read(), name=image_no_extension+".pdf")
             )
             pdf_file.save()
-            return Response({'message': 'PDF generated and saved successfully'}, status=status.HTTP_200_OK)
+            return Response({'status': 201, 'message': 'PDF generated and saved successfully', 'file': '/media/' + pdf_file.file.name}, status=status.HTTP_201_CREATED)
         else:
-            return Response({'error': 'PDF generation failed'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'status': 500, 'error': 'PDF generation failed'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -2,6 +2,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.utils import timezone
+import random
 
 
 class User(AbstractUser):
@@ -29,9 +30,16 @@ class User(AbstractUser):
 
 class Project(models.Model):
     name = models.CharField(max_length=50, verbose_name='项目名称')
+    invitation_code = models.CharField(max_length=50, editable=False, verbose_name='邀请码')
     create_date = models.DateTimeField(default=timezone.now, verbose_name='创建日期')
     # 项目中包含的用户，和User表是多对多的关系
     users = models.ManyToManyField(User, verbose_name='项目包含用户', through='ProjectUser')
+
+    def generate_invitation_code(self):
+        while True:
+            invitation_code = str(random.randint(100000000, 999999999))
+            if not Project.objects.filter(invitation_code=invitation_code).exists():
+                return invitation_code
 
     class Meta:
         verbose_name = '项目'
@@ -42,8 +50,15 @@ class Project(models.Model):
 
 
 class ProjectUser(models.Model):
+    MEMBER_CHOICES = (
+        ('owner', '项目负责人'),
+        ('admin', '管理员'),
+        ('member', '普通用户'),
+    )
+
     project = models.ForeignKey(Project, on_delete=models.PROTECT)
     user = models.ForeignKey(User, on_delete=models.PROTECT)
+    user_level = models.CharField(max_length=100, choices=MEMBER_CHOICES, verbose_name='项目用户等级')
 
 
 class FolderinProject(models.Model):

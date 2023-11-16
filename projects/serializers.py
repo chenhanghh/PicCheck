@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from common.models import User, Project, FolderinProject, FileinProject
+from common.models import User, Project, FolderinProject, FileinProject, ProjectUser
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -17,7 +17,29 @@ class FolderSerializer(serializers.ModelSerializer):
 class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
-        fields = '__all__'
+        exclude = ['invitation_code']
+
+
+class UserinProjectSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'position', 'gender', 'avatar')
+
+
+class ProjectUserSerializer(serializers.ModelSerializer):
+    user = UserinProjectSerializer()
+
+    class Meta:
+        model = ProjectUser
+        fields = ('user', 'user_level')
+
+
+class ProjectDetailSerializer(serializers.ModelSerializer):
+    users = UserSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Project
+        fields = ['users']
 
 
 # 文件上传

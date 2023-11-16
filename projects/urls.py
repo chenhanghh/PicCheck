@@ -1,7 +1,8 @@
 from django.urls import path
 
 from projects.views import AddProjectAPI, UploadFileAPI, AddFolderAPI, DelFileAPI, FileRetrieveAPI, DelFolderAPI, \
-    FolderRenameAPI, FolderInfoAPI, ProjectInfoAPI, ProjectRenameAPI, DelProjectAPI, SearchAPI
+    FolderRenameAPI, FolderInfoAPI, ProjectInfoAPI, ProjectRenameAPI, DelProjectAPI, SearchAPI, JoinProjectAPI, \
+    ProjectDetailAPI, PromoteMemberToAdminView, DemoteAdminToMemberView, TransferOwnershipView, RemoveUserFromProjectView
 
 # 路由 就是指：根据HTTP请求的url路径，设置由哪个函数来处理这个请求。
 # urlpatterns 列表：Django 的 url 路由的入口
@@ -9,6 +10,16 @@ urlpatterns = [
 
     # 创建项目
     path('api/addproject/', AddProjectAPI.as_view()),
+    # 通过邀请码加入项目
+    path('api/joinproject/', JoinProjectAPI.as_view()),
+    # 获取项目所包含的用户信息
+    path('api/userinfo/<int:pk>/', ProjectDetailAPI.as_view()),
+
+    path('api/<int:project_id>/promote/<int:user_id>/', PromoteMemberToAdminView.as_view()),
+    path('api/<int:project_id>/demote/<int:user_id>/', DemoteAdminToMemberView.as_view()),
+    path('api/<int:project_id>/transfer-ownership/<int:user_id_to_transfer>/', TransferOwnershipView.as_view()),
+    path('api/<int:project_id>/remove-user/<int:user_id_to_remove>/', RemoveUserFromProjectView.as_view()),
+
     # 删除项目
     path('api/delproject/<int:project_id>/', DelProjectAPI.as_view()),
     # 获取项目文件夹目录

@@ -3,45 +3,148 @@
 <head>
     <meta charset="utf-8">
     <style>
+        @page {
+            size: a4 portrait;
+            font-family: STSong-Light;
+            @frame header_img_frame {           /* Static frame */
+                -pdf-frame-content: header_img_content;
+                left: 0cm; width: 21cm; top: 0cm; height: 10cm;
+            }
+            @frame header_frame {           /* Static frame */
+                -pdf-frame-content: header_content;
+                left: 0.5cm; width: 8cm; top:2.25cm; height: 3cm;
+            }
+
+            @frame header2_frame {           /* header2_frame */
+                -pdf-frame-content: header2_content;
+                left: 1cm; width: 19cm; top: 4.5cm; height: 2cm;
+            }
+            @frame col1_frame {             /* Content frame 1 */
+                -pdf-frame-content: col1_content;
+                left:  1cm; width: 9cm; top: 5.7cm; height: 12cm;
+            }
+            @frame col2_frame {             /* Content frame 2 */
+                -pdf-frame-content: col2_content;
+                left:  11cm; width: 9cm; top:6 cm; height: 12cm;
+            }
+            @frame header3_frame {             /* header3_frame */
+                -pdf-frame-content: header3_content;
+                left: 1cm; width: 19cm; top:16.5cm; height: 2cm;
+            }
+            @frame bottom_frame {             /* Content frame 2 */
+                -pdf-frame-content: bottom_content;
+                text-align: left;
+                left:  1cm; width: 19cm; top: 17.7cm; height: 12cm;
+            }
+            @frame bottom_img_frame {             /* Content frame 2 */
+                -pdf-frame-content: bottom_img_content;
+                left:  0cm; width: 21cm; top: 25cm; height: 12cm;right:0cm
+            }
+        }
         /* CSS 样式 控制布局和样式 */
+        p { font-family: STSong-Light }
+        body {
+            text-align: center; /* 文本居中对齐 */
+        }
+
+        .main-title {
+            font-size: 40px;
+            color: black;
+            font-family: STSong-Light ;
+            text-align: center; /* 标题居中对齐 */
+        }
+
         .container {
             display: flex;
             flex-direction: column; /* 垂直布局 */
         }
 
+        .section {
+            font-size: 20px; /* 设置标题字体大小 */
+            font-family: STSong-Light ;
+            text-align: left; /* 标题左对齐 */
+        }
+
+        .section2 {
+            height: 10cm ;
+            width: 9cm;
+        }
+
+        .section3 {
+            font-size: 16px; /* 设置标题字体大小 */
+            text-align: left; /* 标题左对齐 */
+            font-family: STSong-Light ;
+        }
+
+        .cover {
+            object-fit: cover;
+        }
+
+        .content{
+            width:21.5cm;
+        }
+
+        .section1 {
+
+            }
+
         .top {
-            display: flex;
-            justify-content: space-between;
+            flex:1;
+            width: 10%;
+            height: 200px;
+            position:absolute;
+            left:50%;
         }
 
-        .top-left {
-            width: 50%; /* 左半部分宽度为50% */
+       .top1 {
+           width: 200px;
+           height: 200px;
         }
 
-        .top-right {
-            width: 50%; /* 右半部分宽度为50% */
-            font-family: 'NotoSansSC-VariableFont_wght', sans-serif; /* 将字体设置为宋体 */
+        .top p {
+            text-align: left; /* box_s_list 内容左对齐 */
+            flex:1
         }
 
         .bottom {
+           text-align: left;
+           font-family: STSong-Light ;
+           font-size: 16px;
         }
+
+        .bottom p {
+            /* frontend_html_content 内容左对齐 */
+        }
+
     </style>
 </head>
 <body>
+    <h1 class="main-title" id="header_content">检测报告</h1>
     <div class="container">
-        <div class="top">
-            <div class="top-left">
-                <img src="data:image/jpeg;base64,{{ image_data }}" alt="Image">
-            </div>
-            <div class="top-right">
-                {% for key, value in box_s_list %}
-                    <p>{{ key|safe }}: {{ value }}</p>
-                {% endfor %}
+        <div id="header_img_content">
+        <img src="templates/img.png" alt="Image" class="cover">
+        </div>
+        <div class="section" id="header2_content" >一、 图片检测结果</div>
+        <div class="top" id="col1_content">
+            <div class="section2" >
+                <img src="data:image/jpeg;base64,{{ image_data }}" alt="Image" class="cover">
             </div>
         </div>
-        <div class="bottom">
+        <div class="top1" id="col2_content">
+            <div class="section3" >时间: {{date_time}}</div>
+            <div class="section3" >说明: </div>
+            {% for key, value in result_list %}
+                <p class="section3">{{ key|safe }}: {{ value }}</p >
+            {% endfor %}
+        </div>
+        </div>
+        <div class="section" id="header3_content" >二、 标注</div>
+        <div class="bottom" id="bottom_content">
             {{ frontend_html_content|safe }}
         </div>
+      <div id="bottom_img_content">
+        <img src="templates/img_1.png" alt="Image" class="content">
+      </div>
     </div>
 </body>
 </html>
