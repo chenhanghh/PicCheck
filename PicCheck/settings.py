@@ -258,9 +258,3 @@ ALGORITHM_URL = "https://wx.conre.com.cn/dev/yolov5-crack/predict"
 
 CORS_ORIGIN_ALLOW_ALL = True  # 允许任何主机
 CORS_ALLOW_CREDENTIALS = True  # 允许包含身份验证凭证的请求
-
-# 阿里云短信服务信息
-ALIYUN_ACCESS_KEY_ID = 'LTAI5tFtgfTvD7CpngrEj2kQ'
-ALIYUN_ACCESS_KEY_SECRET = 'r4xzfdpsBEvMyqxjWeUIYOvSX6yGrT'
-ALIYUN_SMS_SIGN_NAME = '拍可测'
-ALIYUN_SMS_TEMPLATE_CODE = 'SMS_285650027'

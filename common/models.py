@@ -67,6 +67,7 @@ class FolderinProject(models.Model):
     project = models.ForeignKey(Project, verbose_name='所属项目', on_delete=models.CASCADE)
     # 形成递归结构，允许在文件夹内创建子文件夹
     parent_folder = models.ForeignKey('self', verbose_name='父文件夹', null=True, blank=True, on_delete=models.CASCADE)
+    type = models.CharField(max_length=50, default='folder', verbose_name='文件夹类型')
 
     class Meta:
         verbose_name = '项目文件夹'
@@ -83,12 +84,13 @@ class FileinProject(models.Model):
     project = models.ForeignKey(Project, verbose_name='所属项目', on_delete=models.CASCADE)
     file = models.FileField(upload_to='uploads/projects/%Y%m%d/', verbose_name='文件', null=True, blank=True)
     create_date = models.DateTimeField(default=timezone.now, verbose_name='创建时间')
-    file_name = models.CharField(max_length=50, verbose_name='文件名')
+    title = models.CharField(max_length=500, verbose_name='文件名')
     file_size = models.PositiveIntegerField()  # 文件大小
+    type = models.CharField(max_length=50, verbose_name='文件类型')
 
     class Meta:
         verbose_name = '项目文件'
         verbose_name_plural = verbose_name
 
     def __str__(self):
-        return self.file_name
+        return self.title

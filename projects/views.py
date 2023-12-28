@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.db.models import Q
+from django.http import FileResponse
 from rest_framework.permissions import IsAuthenticated
 
 from common.models import Project, ProjectUser, FolderinProject, FileinProject, User
@@ -10,7 +11,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.views import APIView
 from .serializers import ProjectSerializer, FileAddSerializer, FolderSerializer, FileDelSerializer, FileSerializer, \
     FolderRenameSerializer, FolderInfoSerializer, FileInfoSerializer, ProjectRenameSerializer, ProjectUserSerializer, \
-    ProjectDetailSerializer
+    ProjectDetailSerializer, FileRenameSerializer
 from rest_framework.response import Response
 
 import logging
@@ -75,9 +76,68 @@ class JoinProjectAPI(generics.CreateAPIView):
             project_user = ProjectUser(project=project, user=request.user, user_level='member')
             project_user.save()
 
-            return Response({'status': 200, 'message': 'Successfully join the project.', 'project_id': project.id}, status=status.HTTP_200_OK)
+            return Response({'status': 200, 'message': 'Successfully join the project.', 'project_id': project.id, 'project_name': project.name}, status=status.HTTP_200_OK)
         else:
             return Response({'status': 400, 'error': 'Missing invitation code.'}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserProjectsAPI(generics.ListAPIView):
+    """
+    获取当前认证用户所属的所有项目的ID和名称
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        try:
+            # 获取当前认证的用户
+            user = request.user
+
+            # 查询用户所属的所有项目
+            project_users = ProjectUser.objects.filter(user=user).select_related('project')
+
+            # 构建包含项目ID和名称的列表
+            projects_info = [{'id': project_user.project.id, 'name': project_user.project.name, 'user_level': project_user.user_level} for project_user in project_users]
+
+            return Response({'status': 200, 'data': projects_info}, status=status.HTTP_200_OK)
+
+        except ProjectUser.DoesNotExist:
+            return Response({'error': '未找到用户所属的项目'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            # 捕捉其他意外错误
+            return Response({'error': '服务器内部错误: {}'.format(str(e))}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ExitProjectAPI(generics.DestroyAPIView):
+    """
+    用户退出项目
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = ProjectUserSerializer
+
+    def delete(self, request, *args, **kwargs):
+        project_id = kwargs.get('project_id', None)
+        if not project_id:
+            return Response({'status': 400, 'error': '未提供项目ID'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 获取项目
+        try:
+            project = Project.objects.get(pk=project_id)
+        except Project.DoesNotExist:
+            return Response({'status': 404, 'error': '项目未找到'}, status=status.HTTP_404_NOT_FOUND)
+
+        # 检查用户是否为项目成员
+        try:
+            project_user = ProjectUser.objects.get(project=project, user=request.user)
+        except ProjectUser.DoesNotExist:
+            return Response({'status': 404, 'error': '用户不是该项目的成员'}, status=status.HTTP_404_NOT_FOUND)
+
+        # 阻止项目所有者直接退出（他们应该转让所有权或删除项目）
+        if project_user.user_level == 'owner':
+            return Response({'status': 403, 'error': '项目所有者不能直接退出项目'}, status=status.HTTP_403_FORBIDDEN)
+
+        # 从项目中删除用户
+        project_user.delete()
+        return Response({'status': 200, 'message': '用户成功退出项目'}, status=status.HTTP_200_OK)
 
 
 class ProjectDetailAPI(generics.RetrieveAPIView):
@@ -279,6 +339,18 @@ class AddFolderAPI(generics.CreateAPIView):
 
     queryset = FolderinProject.objects.all()
     serializer_class = FolderSerializer
+    print(serializer_class['title'], serializer_class['project'])
+
+    def create(self, request, *args, **kwargs):
+        try:
+            # 调用原始的 create 方法
+            return super().create(request, *args, **kwargs)
+        except ValueError as e:
+            # 捕获特定错误，如数据验证错误
+            return Response({'status': 400, "error": f"值错误: {str(e)}"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            # 捕获其他所有可能的异常
+            return Response({'status': 500, "error": f"服务器内部错误: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # 上传文件
@@ -300,8 +372,9 @@ class UploadFileAPI(generics.CreateAPIView):
         # 处理多个文件
         for file in files:
             # 设置文件名称和大小到 validated_data 中
-            serializer.validated_data['file_name'] = file.name
+            serializer.validated_data['title'] = file.name
             serializer.validated_data['file_size'] = file.size
+            serializer.validated_data['type'] = file.name.split(".")[-1]
 
             # 关联上传的文件与当前登录用户
             serializer.validated_data['user'] = self.request.user
@@ -333,11 +406,11 @@ class DelFileAPI(APIView):
                     # 删除数据库中的文件记录
                     file.delete()
 
-                return Response({"message": "Delete file successfully."}, status=status.HTTP_204_NO_CONTENT)
+                return Response({'status': 200, "message": "Delete file successfully."}, status=status.HTTP_200_OK)
             except Exception as e:
-                return Response({"message": "File delete error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({'status': 500, "message": "File delete error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'status': 400, 'error': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class FileRetrieveAPI(generics.RetrieveAPIView):
@@ -345,9 +418,66 @@ class FileRetrieveAPI(generics.RetrieveAPIView):
     获取文件
     """
     permission_classes = [IsAuthenticated]
-
     queryset = FileinProject.objects.all()
     serializer_class = FileSerializer
+
+    def retrieve(self, request, *args, **kwargs):
+        try:
+            # 调用原始的 retrieve 方法获取文件
+            return super().retrieve(request, *args, **kwargs)
+        except FileinProject.DoesNotExist:
+            # 如果文件不存在，返回 404 错误
+            return Response({'status': 404, "error": "文件未找到"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            # 捕捉其他意外错误
+            return Response({'status': 500, "error": f"服务器内部错误: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class DownloadFileAPI(APIView):
+    """
+    文件下载
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, file_id):
+        try:
+            # 通过文件ID查找文件
+            file = FileinProject.objects.get(pk=file_id)
+
+            # 文件路径
+            file_path = file.file.path
+
+            # 创建响应，将文件作为附件发送
+            response = FileResponse(open(file_path, 'rb'), as_attachment=True)
+            response['Content-Disposition'] = f'attachment; filename="{file.title}"'
+            response.data = {'status': 200, 'message': '文件下载成功'}
+
+            return response
+        except FileinProject.DoesNotExist:
+            return Response({'status': 404, 'error': '文件未找到'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'status': 500, 'error': f'服务器错误: {str(e)}'},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class FileRenameAPI(APIView):
+    """
+    文件重命名
+    """
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, file_id):
+        try:
+            file = FileinProject.objects.get(pk=file_id)
+        except FileinProject.DoesNotExist:
+            return Response({'error': '文件未找到'}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = FileRenameSerializer(data=request.data)
+        if serializer.is_valid():
+            file.title = serializer.validated_data['new_title']
+            file.save()
+            return Response({'message': '文件重命名成功'}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 # 删除文件夹
@@ -383,14 +513,16 @@ class DelFolderAPI(APIView):
 
     def post(self, request):
         folder_ids = request.data.get('folder_ids', [])
+        print(folder_ids)
 
         for folder_id in folder_ids:
             try:
                 del_folder(folder_id)
+                print('dadada')
             except Exception as e:
-                return Response({"message": "Folder delete error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({'status': 500, "message": "Folder delete error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        return Response({"message": "Delete folder successfully."}, status=status.HTTP_204_NO_CONTENT)
+        return Response({'status': 200, "message": "Delete folder successfully."}, status=status.HTTP_200_OK)
 
 
 class FolderRenameAPI(APIView):
@@ -422,7 +554,7 @@ class FolderInfoAPI(APIView):
         try:
             folder = FolderinProject.objects.get(pk=folder_id)
         except FolderinProject.DoesNotExist:
-            return Response({"message": "Folder foes not exist."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'status': 404, "message": "Folder foes not exist."}, status=status.HTTP_404_NOT_FOUND)
 
         subfolders = FolderinProject.objects.filter(parent_folder_id=folder_id)
         files = FileinProject.objects.filter(folder_id=folder_id)
@@ -430,12 +562,9 @@ class FolderInfoAPI(APIView):
         subfolder_serializer = FolderInfoSerializer(subfolders, many=True)
         file_serializer = FileInfoSerializer(files, many=True)
 
-        data = {
-            "subfolders": subfolder_serializer.data,
-            "files": file_serializer.data
-        }
+        content = subfolder_serializer.data + file_serializer.data
 
-        return Response(data, status=status.HTTP_200_OK)
+        return Response({'status': 200, 'data': content}, status=status.HTTP_200_OK)
 
 
 class ProjectInfoAPI(APIView):
@@ -448,7 +577,7 @@ class ProjectInfoAPI(APIView):
         try:
             project = Project.objects.get(pk=project_id)
         except Project.DoesNotExist:
-            return Response({"message": "Project does not exist."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'status': 404, "message": "Project does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
         subfolders = FolderinProject.objects.filter(parent_folder_id=None, project_id=project_id)
         files = FileinProject.objects.filter(folder_id=None, project_id=project_id)
@@ -456,12 +585,9 @@ class ProjectInfoAPI(APIView):
         subfolder_serializer = FolderInfoSerializer(subfolders, many=True)
         file_serializer = FileInfoSerializer(files, many=True)
 
-        data = {
-            "subfolders": subfolder_serializer.data,
-            "files": file_serializer.data
-        }
+        content = subfolder_serializer.data + file_serializer.data
 
-        return Response(data, status=status.HTTP_200_OK)
+        return Response({'status': 200, 'data': content}, status=status.HTTP_200_OK)
 
 
 class ProjectRenameAPI(APIView):
@@ -478,9 +604,9 @@ class ProjectRenameAPI(APIView):
             new_name = serializer.validated_data['new_name']
             project.name = new_name
             project.save()
-            return Response({"message": "The project was successfully renamed."}, status=status.HTTP_200_OK)
+            return Response({'status': 200, "message": "The project was successfully renamed."}, status=status.HTTP_200_OK)
         else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'status': 400, 'error': serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class DelProjectAPI(APIView):
@@ -504,9 +630,9 @@ class DelProjectAPI(APIView):
                 ProjectUser.objects.filter(project_id=project_id).delete()
                 # 再删除项目记录
                 project.delete()
-            return Response({"message": "Delete project successfully."}, status=status.HTTP_204_NO_CONTENT)
+            return Response({'status': 200, "message": "Delete project successfully."}, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response({"message": "Project delete error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'status': 500, "message": "Project delete error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class SearchAPI(APIView):

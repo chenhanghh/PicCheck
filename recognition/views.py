@@ -25,6 +25,8 @@ from django.core.files.base import ContentFile
 
 import logging
 
+from recognition.tasks import crack_detection
+
 logger = logging.getLogger(__name__)
 
 # 链接redis数据库
@@ -38,7 +40,7 @@ class CrackDetectionShow(APIView):
     def post(self, *args, **kwargs):
         image = self.request.FILES.get('image')
         with image.open() as storage_f:
-            # img_bytes = storage_f.read()
+            img_bytes = storage_f.read()
             # results = crack_detection(img_bytes)
             # box_s = dict(results)
             # 上面代码涉及算法的调用，不要删除
