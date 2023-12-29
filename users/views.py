@@ -11,28 +11,25 @@ import re
 from django.contrib.auth.hashers import check_password
 from django.db.utils import IntegrityError
 
-from aliyunsdkcore.client import AcsClient
-from aliyunsdkcore.request import CommonRequest
-from django.conf import settings
+# from aliyunsdkcore.client import AcsClient
+# from aliyunsdkcore.request import CommonRequest
+# from django.conf import settings
 import json
 
 from .serializers import ResetPasswordSerializer, LoginSmsSerializer, UserSerializer, UserEditSerializer, \
     LoginPwdSerializer, UserRegisterSerializer, VerifySmsCodeSerializer
 
-from utils.yuntongxun.sms import CCP
 import logging
 
-from django_redis import get_redis_connection
+from django.core.cache import cache
 
 # 注册视图
 from django.views import View
 
 logger = logging.getLogger(__name__)
 
-# 链接redis数据库
-redis_conn = get_redis_connection("default")
 
-
+"""
 # 发送验证码
 class SmsCodeView(View):
     def get(self, request):
@@ -50,7 +47,7 @@ class SmsCodeView(View):
         # request.session['verification_code'] = verification_code
 
         # 保存短信验证码
-        redis_conn.setex('sms_%s' % phonenumber, 3000, verification_code)
+        cache.setex('sms_%s' % phonenumber, 3000, verification_code)
 
         # 阿里云短信服务配置
         client = AcsClient(
@@ -84,6 +81,7 @@ class SmsCodeView(View):
         except Exception as e:
             return Response({'status': 500, 'message': f'验证码发送失败: {str(e)}'},
                             status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+"""
 
 
 class UserRegistrationAPI(APIView):

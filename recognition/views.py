@@ -23,14 +23,13 @@ from xhtml2pdf import pisa
 
 from django.core.files.base import ContentFile
 
+from django.core.cache import cache
+
 import logging
 
 from recognition.tasks import crack_detection
 
 logger = logging.getLogger(__name__)
-
-# 链接redis数据库
-redis_conn = get_redis_connection("default")
 
 
 class CrackDetectionShow(APIView):
@@ -56,7 +55,8 @@ class CrackDetectionShow(APIView):
             # 将数据转化为 JSON 格式并存储在 Redis 中，设置过期时间
             cache_data = {'box_s': box_s, 'img_new_base64': img_new_base64}
             # cache_data = {'box_s': box_s}
-            redis_conn.setex(cache_key, 3600000, json.dumps(cache_data))  # 设置缓存过期时间为1小时
+            # redis_conn.setex(cache_key, 3600000, json.dumps(cache_data))  # 设置缓存过期时间为1小时
+            cache.set(cache_key, json.dumps(cache_data), timeout=3600)  # 使用 Django 的缓存系统来设置缓存，超时时间设置为 1 小时
         return dis_utils.make_image_response(img_new)
 
     def make_image_response(self, image: Image):
@@ -78,7 +78,7 @@ class GetBoxSAPIView(APIView):
         cache_key = 'image_cache:%s' % image_name
 
         # 从缓存中获取box_s数据
-        box_s_data = redis_conn.get(cache_key)
+        box_s_data = cache.get(cache_key)
 
         if box_s_data is not None:
             data = json.loads(box_s_data)
@@ -111,7 +111,7 @@ class SaveGalleryAPI(generics.CreateAPIView):
         # 从 Redis 缓存中获取 box_s 和 img_new 数据
         # 生成缓存键，使用image的唯一标识作为键
         cache_key = 'image_cache:%s' % image_name
-        cached_data = redis_conn.get(cache_key)
+        cached_data = cache.get(cache_key)
         data = json.loads(cached_data)
 
         if data is None:
@@ -185,7 +185,7 @@ class GeneratePDFAPI(APIView):
         # 从 Redis 缓存中获取 box_s 和 img_new 数据
         # 生成缓存键，使用image的唯一标识作为键
         cache_key = 'image_cache:%s' % image_name
-        cached_data = redis_conn.get(cache_key)
+        cached_data = cache.get(cache_key)
         data = json.loads(cached_data)
         date_str = datetime.datetime.now().strftime("%Y年%m月%d日%H时%M分")
 
